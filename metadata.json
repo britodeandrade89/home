@@ -1,0 +1,8 @@
+{
+  "name": "Smart Home Dashboard",
+  "description": "A futuristic smart home dashboard with voice control, AI assistance, weather tracking, and reminders.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
