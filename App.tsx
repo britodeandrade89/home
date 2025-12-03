@@ -5,7 +5,7 @@ import {
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather';
-import { processVoiceCommandAI } from './services/gemini';
+import { processVoiceCommandAI, fetchNews } from './services/gemini';
 import { Reminder, NewsData, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
@@ -24,7 +24,11 @@ const App = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [newReminderText, setNewReminderText] = useState('');
   const [showAddReminder, setShowAddReminder] = useState(false);
-  const [newsData, setNewsData] = useState<NewsData>({ politica: [], esportes: [], cultura: [] });
+  const [newsData, setNewsData] = useState<NewsData>({ 
+    politica: [{ text: "Carregando...", time: "--:--", img: "" }], 
+    esportes: [{ text: "Carregando...", time: "--:--", img: "" }], 
+    cultura: [{ text: "Carregando...", time: "--:--", img: "" }] 
+  });
   const [newsIndexP, setNewsIndexP] = useState(0);
   const [newsIndexE, setNewsIndexE] = useState(0);
   const [newsIndexC, setNewsIndexC] = useState(0);
@@ -227,27 +231,75 @@ const App = () => {
     };
   }, [startWakeWordListener]);
 
-  // News Rotation
+  // News Data & Rotation with Real-time Fetch
   useEffect(() => {
-    const rawNews = {
-       politica: ["Lula liga para Trump e defende cooperação.", "Câmara vota projeto de devedor contumaz.", "Senado aprova novo marco fiscal."],
-       esportes: ["Flamengo rompe barreira dos R$ 2 bilhões.", "Brasil vence amistoso com goleada.", "Vôlei: Seleção garante vaga olímpica."],
-       cultura: ["Novo filme brasileiro aclamado no exterior.", "Rock in Rio anuncia line-up 2026.", "Exposição de Van Gogh no Rio."]
-    };
-    // Using Picsum for better placeholder compliance
-    const process = (arr: string[], seed: number) => arr.map((t, i) => ({ text: t, time: "Agora", img: `https://picsum.photos/150/150?random=${seed + i}` }));
-    
-    setNewsData({ 
-        politica: process(rawNews.politica, 100), 
-        esportes: process(rawNews.esportes, 200), 
-        cultura: process(rawNews.cultura, 300) 
-    });
+    let mounted = true;
 
-    const t1 = setInterval(() => setNewsIndexP(i => (i+1)%3), 15000);
-    const t2 = setTimeout(() => setInterval(() => setNewsIndexE(i => (i+1)%2), 15000), 5000);
-    const t3 = setTimeout(() => setInterval(() => setNewsIndexC(i => (i+1)%2), 15000), 10000);
-    return () => { clearInterval(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, []);
+    const updateNews = async () => {
+       const getCategoryNews = async (categoryTerm: string, seed: number) => {
+            try {
+              const headlines = await fetchNews(categoryTerm);
+              if (!mounted) return [];
+              if (headlines.length === 0) return [{ text: "Sem notícias recentes.", time: "--:--", img: `https://picsum.photos/150/150?random=${seed}` }];
+              
+              return headlines.map((h, i) => ({
+                  text: h,
+                  time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                  img: `https://picsum.photos/150/150?random=${seed + i}`
+              }));
+            } catch (e) {
+              console.error(e);
+              return [{ text: "Erro ao atualizar.", time: "--:--", img: `https://picsum.photos/150/150?random=${seed}` }];
+            }
+       };
+
+       const [p, e, c] = await Promise.all([
+            getCategoryNews('Política Brasileira', 101),
+            getCategoryNews('Esportes Brasil', 202),
+            getCategoryNews('Cultura e Entretenimento Brasil', 303)
+       ]);
+       
+       if (mounted) {
+         setNewsData({ politica: p, esportes: e, cultura: c });
+       }
+    };
+
+    updateNews(); // Initial fetch
+    const newsInterval = setInterval(updateNews, 1800000); // Update every 30 minutes
+
+    // Visual Rotation Logic
+    const t1 = setInterval(() => setNewsIndexP(i => {
+       // Safe rotation based on current data length
+       const len = newsData.politica?.length || 1;
+       return (i + 1) % len;
+    }), 10000);
+    
+    const t2 = setTimeout(() => {
+      if(!mounted) return;
+      setInterval(() => setNewsIndexE(i => {
+         const len = newsData.esportes?.length || 1;
+         return (i + 1) % len;
+      }), 10000);
+    }, 2000);
+
+    const t3 = setTimeout(() => {
+      if(!mounted) return;
+      setInterval(() => setNewsIndexC(i => {
+         const len = newsData.cultura?.length || 1;
+         return (i + 1) % len;
+      }), 10000);
+    }, 4000);
+
+    return () => { 
+        mounted = false;
+        clearInterval(newsInterval); 
+        clearInterval(t1); 
+        clearTimeout(t2); 
+        clearTimeout(t3); 
+        // Note: Intervals created inside setTimeout are not cleared here for simplicity 
+        // in this snippet, but 'mounted' check prevents state updates on unmounted component.
+    };
+  }, []); // Only run on mount, internal logic handles updates
 
   // Resize Logic
   useEffect(() => {

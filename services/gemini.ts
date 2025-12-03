@@ -1,6 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Use the environment variable if available, otherwise use the provided fallback key.
+// This ensures the app works in environments where process.env is not set (like client-side browsers).
+const apiKey = process.env.API_KEY || "gen-lang-client-0947648253";
+
+const ai = new GoogleGenAI({ apiKey });
 
 export const getChefSuggestion = async (userInput: string): Promise<string> => {
   try {
@@ -16,6 +20,31 @@ export const getChefSuggestion = async (userInput: string): Promise<string> => {
   } catch (error) {
     console.error("Erro no Chef IA:", error);
     return "Erro ao conectar com o Chef IA.";
+  }
+};
+
+export const fetchNews = async (category: string): Promise<string[]> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Liste as 3 manchetes mais recentes e importantes sobre ${category} no Brasil.
+      Use a ferramenta de busca do Google para encontrar informações atualizadas de hoje no Google News.
+      Retorne APENAS os títulos das notícias, separados por "|||". 
+      Não use numeração, bullets ou markdown. Apenas texto puro separado por |||.`,
+      config: {
+        tools: [{ googleSearch: {} }]
+      }
+    });
+
+    const text = response.text;
+    if (!text) return [];
+    
+    // Split by separator and clean up
+    return text.split('|||').map(t => t.trim()).filter(t => t.length > 5).slice(0, 3);
+  } catch (error) {
+    console.error(`Erro ao buscar notícias de ${category}:`, error);
+    // Return empty array to let UI handle it or show skeletons
+    return [];
   }
 };
 
