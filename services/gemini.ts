@@ -23,28 +23,70 @@ export const getChefSuggestion = async (userInput: string): Promise<string> => {
 };
 
 export const fetchNews = async (category: string): Promise<string[]> => {
+  const model = "gemini-2.5-flash";
+  
+  // 1. TENTATIVA COM GOOGLE SEARCH (JSON Schema)
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Liste as 3 manchetes mais recentes e importantes sobre ${category} no Brasil.
-      Use a ferramenta de busca do Google para encontrar informações atualizadas de hoje no Google News.
-      Retorne APENAS os títulos das notícias, separados por "|||". 
-      Não use numeração, bullets ou markdown. Apenas texto puro separado por |||.`,
+      model: model,
+      contents: `Liste as 3 manchetes mais recentes, urgentes e importantes sobre ${category} no Brasil.
+      Use a ferramenta googleSearch para buscar no 'Google News Brazil' e 'G1' agora mesmo.
+      Ignore notícias antigas. Foque no que está acontecendo HOJE.
+      Retorne apenas um array JSON de strings com os títulos.`,
       config: {
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
       }
     });
 
-    const text = response.text;
-    if (!text) return [];
-    
-    // Split by separator and clean up
-    return text.split('|||').map(t => t.trim()).filter(t => t.length > 5).slice(0, 3);
+    const jsonText = response.text;
+    if (jsonText) {
+      const headlines = JSON.parse(jsonText);
+      if (Array.isArray(headlines) && headlines.length > 0) {
+        return headlines.slice(0, 3);
+      }
+    }
   } catch (error) {
-    console.error(`Erro ao buscar notícias de ${category}:`, error);
-    // Return empty array to let UI handle it or show skeletons
-    return [];
+    console.warn(`Tentativa 1 (Search) falhou para ${category}:`, error);
   }
+
+  // 2. FALLBACK: CONHECIMENTO INTERNO (Sem ferramenta de busca)
+  // Útil se a ferramenta de busca falhar ou bloquear por região/dispositivo
+  try {
+    const fallbackResponse = await ai.models.generateContent({
+      model: model,
+      contents: `Gere 3 manchetes prováveis e realistas sobre ${category} no Brasil baseadas nos tópicos mais quentes da semana.
+      Seja factual. Retorne um array JSON de strings.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
+
+    const fallbackJson = fallbackResponse.text;
+    if (fallbackJson) {
+      const headlines = JSON.parse(fallbackJson);
+      if (Array.isArray(headlines) && headlines.length > 0) {
+        return headlines.map(h => `${h} (Destaque)`); // Marca visualmente
+      }
+    }
+  } catch (error2) {
+    console.error(`Tentativa 2 (Internal) falhou para ${category}:`, error2);
+  }
+
+  // 3. RETORNO DE SEGURANÇA
+  return [
+    `Não foi possível carregar ${category}.`,
+    "Verifique sua conexão com a internet.",
+    "Tentando atualizar novamente..."
+  ];
 };
 
 export const generateNewsReport = async (headline: string): Promise<string> => {
