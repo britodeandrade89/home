@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Bell, ChefHat, Plus, Lock, Unlock, Download, Newspaper, Activity, Power
+  ArrowRight, ArrowLeft, Bell, Plus, Lock, Unlock, Download, Newspaper, Activity, Power, ChefHat
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -40,7 +40,7 @@ const App = () => {
   
   // State: UI
   const [greeting, setGreeting] = useState('Bem-vindo');
-  const [sidebarWidth, setSidebarWidth] = useState(350);
+  const [sidebarWidth, setSidebarWidth] = useState(100);
   const [sidebarSplit, setSidebarSplit] = useState(0.5);
   const [isChefOpen, setIsChefOpen] = useState(false);
   
@@ -49,14 +49,19 @@ const App = () => {
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [newsSearchMode, setNewsSearchMode] = useState(false);
   
+  // SIDEBAR CONSTANT
+  const SIDEBAR_WIDTH_INITIAL = 100;
+
   // State: Widget Scales & Positions
-  // We use initial positions to place them reasonably on the screen
+  // Logic updated to ensure widgets are visible on Tablets
   const [widgets, setWidgets] = useState({
     clock: { scale: 1, x: 40, y: 40 },
-    weather: { scale: 1, x: window.innerWidth - 300, y: 40 }, // Approximate right side
-    date: { scale: 1, x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 150 },
-    prev: { scale: 1, x: 40, y: window.innerHeight - 150 },
-    next: { scale: 1, x: window.innerWidth - 300, y: window.innerHeight - 150 },
+    // Position Weather to the left of the sidebar with some padding
+    weather: { scale: 1, x: window.innerWidth - SIDEBAR_WIDTH_INITIAL - 350, y: 40 }, 
+    date: { scale: 1, x: (window.innerWidth - SIDEBAR_WIDTH_INITIAL) / 2 - 150, y: window.innerHeight / 2 - 150 },
+    prev: { scale: 1, x: 40, y: window.innerHeight - 200 },
+    // Position Next relative to sidebar
+    next: { scale: 1, x: window.innerWidth - SIDEBAR_WIDTH_INITIAL - 350, y: window.innerHeight - 200 },
   });
   
   const [wakeLockActive, setWakeLockActive] = useState(false);
@@ -152,9 +157,6 @@ const App = () => {
     // 2. Firebase Delete
     if (db && isFirebaseAvailable) {
       try {
-        // Need to find the doc reference. In a real app we'd map ID to DocID
-        // Here we assume ID matches DocID if it came from Firebase.
-        // Since we mix data, we check if it looks like a numeric timestamp (local) or string (firebase)
         if (isNaN(Number(id))) {
             await deleteDoc(doc(db, "smart_home_reminders", id));
         }
@@ -180,7 +182,9 @@ const App = () => {
         .map((r: any) => r[0].transcript).join(' ').toLowerCase();
       
       const lastSlice = transcript.slice(-40);
-      if (lastSlice.includes('smart home') || lastSlice.includes('ok smart')) {
+      
+      // Updated Wake Word Logic: "Olá Smart Home"
+      if (lastSlice.includes('olá smart home') || lastSlice.includes('ola smart home')) {
         recognition.stop();
         startCommandListener();
       }
@@ -278,16 +282,33 @@ const App = () => {
       setGreeting(h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
     }, 1000);
 
-    // Initial position setup for "Right" widgets to handle window resize roughly
+    // Dynamic resize handler to keep widgets on screen
     const handleResize = () => {
+        // Safe width calculation (subtract sidebar)
+        const safeWidth = window.innerWidth - sidebarWidth;
+        const safeHeight = window.innerHeight;
+
         setWidgets(prev => ({
             ...prev,
-            weather: { ...prev.weather, x: window.innerWidth - 350 },
-            next: { ...prev.next, x: window.innerWidth - 300, y: window.innerHeight - 150 },
-            prev: { ...prev.prev, x: 40, y: window.innerHeight - 150 },
-            date: { ...prev.date, x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 150 }
+            // Anchor Weather to right edge of Safe Area with Clamp
+            weather: { 
+              ...prev.weather, 
+              x: Math.min(safeWidth - 380, Math.max(20, safeWidth - 380)) 
+            },
+            // Anchor Next to bottom-right of Safe Area with Clamp
+            next: { 
+              ...prev.next, 
+              x: Math.min(safeWidth - 350, Math.max(20, safeWidth - 350)),
+              y: safeHeight - 200 
+            },
+            prev: { ...prev.prev, x: 40, y: safeHeight - 200 },
+            date: { ...prev.date, x: safeWidth / 2 - 150, y: safeHeight / 2 - 150 }
         }));
     };
+    
+    // Call once on mount to fix initial positions
+    handleResize();
+    
     window.addEventListener('resize', handleResize);
 
     if (navigator.geolocation) {
@@ -306,7 +327,6 @@ const App = () => {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Initial Data Load
     let unsub: (() => void) | undefined;
     if (db) {
       try {
@@ -331,7 +351,7 @@ const App = () => {
     }
 
     return () => { if (unsub) unsub(); clearInterval(timer); window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('resize', handleResize); };
-  }, []);
+  }, [sidebarWidth]);
 
   useEffect(() => {
     if (!isFirebaseAvailable) {
@@ -368,8 +388,10 @@ const App = () => {
             try {
               const headlines = await fetchNews(categoryTerm);
               if (!mounted) return [];
-              if (headlines.length === 0) return [{ text: "Sem notícias recentes.", time: "--:--", img: `https://picsum.photos/150/150?random=${seed}` }];
-              return headlines.map((h, i) => ({
+              // Use fallback inside fetchNews if possible, but double check here
+              const finalHeadlines = headlines.length > 0 ? headlines : ["Sem notícias recentes.", "Verifique a conexão."];
+              
+              return finalHeadlines.map((h, i) => ({
                   text: h,
                   time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                   img: `https://picsum.photos/150/150?random=${seed + i}`
@@ -405,7 +427,8 @@ const App = () => {
 
       if (isResizingWidth.current && appRef.current) {
         const newWidth = appRef.current.getBoundingClientRect().right - clientX;
-        setSidebarWidth(Math.max(250, Math.min(600, newWidth)));
+        const boundedWidth = Math.max(80, Math.min(600, newWidth));
+        setSidebarWidth(boundedWidth);
       }
       if (isResizingHeight.current && sidebarRef.current) {
         const rect = sidebarRef.current.getBoundingClientRect();
@@ -451,6 +474,7 @@ const App = () => {
   const getDateInfo = (d: Date) => ({
     day: d.getDate(),
     weekday: new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(d),
+    month: new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(d).toUpperCase().replace('.', ''),
   });
   const today = getDateInfo(currentTime);
   const yesterday = getDateInfo(new Date(new Date().setDate(currentTime.getDate() - 1)));
@@ -460,11 +484,30 @@ const App = () => {
     const day = currentTime.getDay();
     const hour = currentTime.getHours();
     const list: Reminder[] = [];
-    if (day === 1 && hour >= 19) list.push({ type: 'alert', text: "Marmitas: André não tem aula amanhã.", time: "19:00", id: 'c1' });
-    if (day === 2) {
-      list.push({ type: 'action', text: "Terapia da Marcelly", time: "Dia", id: 'c2' });
-      list.push({ type: 'action', text: "Terapia do André", time: "Dia", id: 'c3' });
+
+    // Segunda (1) a partir das 19h ATÉ Terça (2) 23:59
+    if ((day === 1 && hour >= 19) || day === 2) {
+        list.push({ 
+          type: 'alert', 
+          text: "Terças o André não vai pra escola - Marcelly não precisa agilizar marmitas se não quiser", 
+          time: "Aviso", 
+          id: 'auto_1' 
+        });
     }
+
+    // Terças-feiras (2)
+    if (day === 2) {
+      list.push({ type: 'action', text: "Marcelly tem terapia", time: "Dia todo", id: 'auto_2' });
+      list.push({ type: 'action', text: "André tem terapia", time: "Dia todo", id: 'auto_3' });
+      list.push({ type: 'info', text: "Terapia da familia Bispo", time: "Dia todo", id: 'auto_4' });
+      list.push({ type: 'action', text: "Volei do André - Ir de carona, saindo às 16h40", time: "16:40", id: 'auto_5' });
+    }
+
+    // Quartas-feiras (3)
+    if (day === 3) {
+      list.push({ type: 'action', text: "Quartas é dia de volei no Clério", time: "Noite", id: 'auto_6' });
+    }
+
     return list;
   };
   const allReminders = [...getCyclicalReminders(), ...reminders];
@@ -472,17 +515,34 @@ const App = () => {
   const getBackgroundStyle = () => {
      const code = weather.weathercode;
      const isDay = weather.is_day === 1;
-     let keyword = 'abstract';
-     if (code === 0 || code === 1) keyword = isDay ? 'sunny sky' : 'clear night sky';
-     else if (code === 2 || code === 3) keyword = isDay ? 'cloudy sky' : 'cloudy night';
-     else if (code === 45 || code === 48) keyword = 'foggy forest';
-     else if (code >= 51 && code <= 67) keyword = 'rainy window';
-     else if (code >= 71 && code <= 77) keyword = 'snow landscape';
-     else if (code >= 80 && code <= 82) keyword = 'heavy rain';
-     else if (code >= 95) keyword = 'thunderstorm lightning';
      
-     const safeImg = `https://image.pollinations.ai/prompt/${keyword}%20cinematic%20wallpaper?width=1920&height=1080&nologo=true`;
-     return { backgroundImage: `url("${safeImg}")`, backgroundSize: 'cover', backgroundPosition: 'center', transition: 'background-image 1s ease-in-out' };
+     // USE STATIC UNSPLASH IMAGES TO AVOID CERTIFICATE ERRORS
+     let imgUrl = 'https://images.unsplash.com/photo-1622396481328-9b1b78cdd9fd?q=80&w=1920&auto=format&fit=crop'; // Default Sunny
+     
+     if (code === 0 || code === 1) {
+        // Clear
+        imgUrl = isDay 
+          ? 'https://images.unsplash.com/photo-1622396481328-9b1b78cdd9fd?q=80&w=1920&auto=format&fit=crop' 
+          : 'https://images.unsplash.com/photo-1506765515384-028b60a970df?q=80&w=1920&auto=format&fit=crop';
+     } else if (code >= 2 && code <= 48) {
+        // Cloudy/Fog
+        imgUrl = isDay
+          ? 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=80&w=1920&auto=format&fit=crop'
+          : 'https://images.unsplash.com/photo-1536746803623-cef8708094dd?q=80&w=1920&auto=format&fit=crop';
+     } else if (code >= 51 && code <= 67) {
+        // Rain
+        imgUrl = 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=1920&auto=format&fit=crop';
+     } else if (code >= 80) {
+        // Storm
+        imgUrl = 'https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?q=80&w=1920&auto=format&fit=crop';
+     }
+     
+     return { 
+       backgroundImage: `url("${imgUrl}")`, 
+       backgroundSize: 'cover', 
+       backgroundPosition: 'center', 
+       transition: 'background-image 1s ease-in-out' 
+     };
   };
 
   // --- START SCREEN OVERLAY ---
@@ -495,11 +555,16 @@ const App = () => {
         <div className="w-20 h-20 rounded-full bg-yellow-500 animate-pulse flex items-center justify-center mb-8">
           <Power size={40} className="text-black" />
         </div>
-        <h1 className="text-4xl font-bold uppercase tracking-[0.3em] mb-4 text-center px-4">Smart Home Dashboard</h1>
+        <h1 className="text-4xl font-bold uppercase tracking-[0.3em] mb-4 text-center px-4">Smart Home</h1>
         <p className="text-xl opacity-70 mb-8 animate-bounce">Toque para Iniciar</p>
-        <div className="flex gap-4 text-sm opacity-50">
+        <div className="flex gap-4 text-sm opacity-50 mb-12">
            <div className="flex items-center gap-2"><Lock size={14}/> Tela sempre ativa</div>
-           <div className="flex items-center gap-2"><Activity size={14}/> Monitoramento em tempo real</div>
+           <div className="flex items-center gap-2"><Activity size={14}/> Comandos de Voz</div>
+        </div>
+        
+        <div className="text-[10px] text-white/30 text-center tracking-wider">
+           <p>Desenvolvido por: André Brito ®</p>
+           <p>Versão: 1.0 • Contato: britodeandrade@gmail.com | +55 21 994 527 694</p>
         </div>
       </div>
     );
@@ -507,7 +572,7 @@ const App = () => {
 
   return (
     <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans flex select-none transition-all duration-1000" style={getBackgroundStyle()}>
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] z-0" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-0" />
       
       {/* Voice Overlay */}
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
@@ -545,12 +610,7 @@ const App = () => {
                         <Download size={20} />
                     </button>
                 )}
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setIsChefOpen(true); }} 
-                  className="bg-gradient-to-r from-yellow-500 to-orange-500 p-3 rounded-full shadow-lg hover:scale-110 transition-transform active:scale-95"
-                >
-                   <ChefHat className="text-white" />
-                </button>
+                {/* Chef Button Removed */}
               </div>
               <WeatherWidget weather={weather} locationName={locationName} />
            </div>
@@ -578,10 +638,13 @@ const App = () => {
             onPositionChange={(x, y) => updateWidget('prev', { x, y })}
         >
               <div className="flex items-center gap-4 group">
-                <ArrowLeft className="text-white w-8 h-8 group-hover:-translate-x-2 transition-transform" /> 
+                <ArrowLeft className="text-white w-16 h-16 group-hover:-translate-x-2 transition-transform" /> 
                 <div className="text-left drop-shadow-lg">
-                  <span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span>
-                  <span className="text-4xl font-bold text-white">{yesterday.day}</span>
+                  <span className="text-lg block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span>
+                  <div className="leading-none">
+                     <span className="text-6xl font-bold text-white block">{yesterday.day}</span>
+                     <span className="text-xl font-light text-white/70 uppercase">{yesterday.month}</span>
+                  </div>
                 </div>
               </div>
         </ResizableWidget>
@@ -594,12 +657,21 @@ const App = () => {
         >
               <div className="flex items-center gap-4 text-right group">
                 <div className="text-right drop-shadow-lg">
-                  <span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span>
-                  <span className="text-4xl font-bold text-white">{tomorrow.day}</span>
+                  <span className="text-lg block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span>
+                  <div className="leading-none">
+                     <span className="text-6xl font-bold text-white block">{tomorrow.day}</span>
+                     <span className="text-xl font-light text-white/70 uppercase">{tomorrow.month}</span>
+                  </div>
                 </div> 
-                <ArrowRight className="text-white w-8 h-8 group-hover:translate-x-2 transition-transform" />
+                <ArrowRight className="text-white w-16 h-16 group-hover:translate-x-2 transition-transform" />
               </div>
         </ResizableWidget>
+
+        {/* FOOTER */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-white/30 text-center tracking-wider pointer-events-none z-0">
+           <p>Desenvolvido por: André Brito ®</p>
+           <p>Versão: 1.0 • Contato: britodeandrade@gmail.com | +55 21 994 527 694</p>
+        </div>
 
       </section>
 
