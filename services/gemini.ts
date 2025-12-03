@@ -47,8 +47,22 @@ export const fetchNews = async (category: string): Promise<string[]> => {
   }
 };
 
+export const generateNewsReport = async (headline: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `O usuário quer ouvir sobre esta notícia: "${headline}".
+      Atue como um âncora de jornal. Escreva um resumo completo, informativo e profissional de 3 parágrafos sobre esse tópico, como se estivesse lendo a notícia no rádio.
+      Não invente fatos, baseie-se no que é provável para essa manchete ou use seu conhecimento geral se for um fato conhecido. Se for muito recente, explique o contexto.`,
+    });
+    return response.text || "Não consegui carregar os detalhes desta notícia.";
+  } catch (error) {
+    return "Erro ao gerar o relatório da notícia.";
+  }
+};
+
 export interface VoiceCommandResult {
-  action: "add_reminder" | "chat";
+  action: "add_reminder" | "chat" | "read_news_init";
   text?: string;
   type?: "info" | "alert" | "action";
   response?: string;
@@ -59,8 +73,9 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
     const model = "gemini-2.5-flash";
     const systemInstruction = `
       Você é o "Smart Home". Analise o comando do usuário.
-      Se for para adicionar um lembrete, tarefa ou compromisso, retorne action="add_reminder".
-      Se for uma pergunta geral ou conversa, retorne action="chat".
+      1. Se o usuário disser "ler notícias", "notícias", "o que está acontecendo" ou similar, retorne action="read_news_init" e response="Qual notícia você quer que eu leia?".
+      2. Se for para adicionar um lembrete, tarefa ou compromisso, retorne action="add_reminder".
+      3. Se for uma pergunta geral ou conversa, retorne action="chat".
       Classifique lembretes em: 'info', 'alert' (urgente) ou 'action' (tarefa).
       Responda APENAS JSON.
     `;
@@ -74,7 +89,7 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            action: { type: Type.STRING, enum: ["add_reminder", "chat"] },
+            action: { type: Type.STRING, enum: ["add_reminder", "chat", "read_news_init"] },
             text: { type: Type.STRING, description: "O texto do lembrete, se aplicável" },
             type: { type: Type.STRING, enum: ["info", "alert", "action"], description: "Tipo do lembrete" },
             response: { type: Type.STRING, description: "Resposta falada para o usuário" }

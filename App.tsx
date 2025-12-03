@@ -5,7 +5,7 @@ import {
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather';
-import { processVoiceCommandAI, fetchNews } from './services/gemini';
+import { processVoiceCommandAI, fetchNews, generateNewsReport } from './services/gemini';
 import { Reminder, NewsData, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
@@ -45,6 +45,7 @@ const App = () => {
   // State: Voice
   const [isCommandMode, setIsCommandMode] = useState(false);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [newsSearchMode, setNewsSearchMode] = useState(false); // New state for news interaction
   
   // State: Widget Scales
   const [scaleTL, setScaleTL] = useState(1);
@@ -65,12 +66,12 @@ const App = () => {
   const commandRef = useRef<any>(null);
 
   // --- Helpers ---
-  const speak = (text: string) => {
+  const speak = (text: string, rate: number = 1.1) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
-      utterance.rate = 1.1;
+      utterance.rate = rate; // Updated to accept rate
       const voices = window.speechSynthesis.getVoices();
       const ptVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt-PT'));
       if (ptVoice) utterance.voice = ptVoice;
@@ -146,7 +147,10 @@ const App = () => {
 
   const startCommandListener = useCallback(() => {
     setIsCommandMode(true);
-    speak("Estou ouvindo.");
+    // Don't speak if we are in a continuous news mode to avoid cutting off prompt
+    if (!newsSearchMode) {
+      speak("Estou ouvindo.");
+    }
 
     setTimeout(() => {
       const cmd = new window.webkitSpeechRecognition();
@@ -158,37 +162,71 @@ const App = () => {
         const command = e.results[0][0].transcript;
         setIsProcessingAI(true);
         
-        const result = await processVoiceCommandAI(command);
+        // 1. Check if we are in News Search Mode
+        if (newsSearchMode) {
+           const allNews = [...newsData.politica, ...newsData.esportes, ...newsData.cultura];
+           const lowerCmd = command.toLowerCase();
+           // Find best match
+           const match = allNews.find(n => n.text.toLowerCase().includes(lowerCmd) || lowerCmd.includes(n.text.toLowerCase().split(' ')[0]));
+           
+           if (match) {
+             speak("Encontrei. Lendo reportagem...", 1.1);
+             const report = await generateNewsReport(match.text);
+             speak(report, 1.25); // Read at 1.25x
+           } else {
+             speak("Não encontrei essa notícia na lista atual.", 1.1);
+           }
+           setNewsSearchMode(false); // Reset mode
+        } 
+        // 2. Normal Mode
+        else {
+          const result = await processVoiceCommandAI(command);
 
-        if (result) {
-          if (result.action === 'add_reminder' && result.text) {
-             await addReminderToDB(result.text, result.type || 'info');
-             speak(`Lembrete adicionado: ${result.text}`);
-          } else if (result.response) {
-             speak(result.response);
+          if (result) {
+            if (result.action === 'read_news_init') {
+              setNewsSearchMode(true); // Enable News Search Mode
+              speak(result.response || "Qual notícia?");
+              // Restart listener logic is handled by onEnd -> check newsSearchMode effect? 
+              // Actually we need to force restart logic below.
+            }
+            else if (result.action === 'add_reminder' && result.text) {
+               await addReminderToDB(result.text, result.type || 'info');
+               speak(`Lembrete adicionado: ${result.text}`);
+            } else if (result.response) {
+               speak(result.response);
+            }
+          } else {
+            speak("Não entendi o comando.");
           }
-        } else {
-          speak("Não entendi o comando.");
         }
 
         setIsProcessingAI(false);
       };
 
       cmd.onerror = () => {
-        speak("Não entendi.");
+        if (!newsSearchMode) speak("Não entendi.");
         setIsCommandMode(false);
+        setNewsSearchMode(false);
         startWakeWordListener();
       };
 
       cmd.onend = () => {
          setIsCommandMode(false);
-         startWakeWordListener();
+         // Important: If we just finished a news init command, we need to restart listening *immediately* but the wake listener usually takes over. 
+         // For simplicity in this architecture, we go back to wake word, but user has a few seconds window usually. 
+         // However, ideally, we should chain the listener. 
+         if (newsSearchMode) {
+            // If in news mode, immediately start listening again for the keyword
+            startCommandListener();
+         } else {
+            startWakeWordListener();
+         }
       };
       
       commandRef.current = cmd;
       cmd.start();
     }, 1200);
-  }, [startWakeWordListener, isFirebaseAvailable, reminders]); // Added deps to ensure state freshness in closure
+  }, [startWakeWordListener, isFirebaseAvailable, reminders, newsSearchMode, newsData]); 
 
   // --- Effects ---
 
@@ -349,7 +387,7 @@ const App = () => {
         clearTimeout(t2); 
         clearTimeout(t3); 
     };
-  }, []); // Only run on mount, internal logic handles updates
+  }, []); 
 
   // Resize Logic
   useEffect(() => {
@@ -444,23 +482,41 @@ const App = () => {
   const allReminders = [...getCyclicalReminders(), ...reminders];
 
   const getBackgroundStyle = () => {
-     // Using Picsum for background
-     const img = weather.is_day 
-       ? 'https://picsum.photos/1920/1080?grayscale&blur=2' 
-       : 'https://picsum.photos/1920/1080?grayscale&blur=4';
-     return { backgroundImage: `url("${img}")`, backgroundSize: 'cover', backgroundPosition: 'center' };
+     // Map Open-Meteo weather codes to keywords
+     const code = weather.weathercode;
+     const isDay = weather.is_day === 1;
+     let keyword = 'abstract';
+
+     // WMO Weather interpretation
+     if (code === 0 || code === 1) keyword = isDay ? 'sunny sky' : 'clear night sky';
+     else if (code === 2 || code === 3) keyword = isDay ? 'cloudy sky' : 'cloudy night';
+     else if (code === 45 || code === 48) keyword = 'foggy forest';
+     else if (code >= 51 && code <= 67) keyword = 'rainy window';
+     else if (code >= 71 && code <= 77) keyword = 'snow landscape';
+     else if (code >= 80 && code <= 82) keyword = 'heavy rain';
+     else if (code >= 95) keyword = 'thunderstorm lightning';
+     
+     // Unsplash Source API (Using specific keywords for "instant" feel based on weather state)
+     const img = `https://source.unsplash.com/1920x1080/?${keyword.replace(' ', ',')},nature`;
+     // Fallback to picsum if unsplash source is deprecated or slow, but user asked for specific match.
+     // Note: source.unsplash.com is being deprecated, using a reliable alternative construction if needed, 
+     // but sticking to standard structure for now or using a keyword based service.
+     // Better alternative for stability: 
+     const safeImg = `https://image.pollinations.ai/prompt/${keyword}%20cinematic%20wallpaper?width=1920&height=1080&nologo=true`;
+     
+     return { backgroundImage: `url("${safeImg}")`, backgroundSize: 'cover', backgroundPosition: 'center', transition: 'background-image 1s ease-in-out' };
   };
 
   return (
-    <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans flex select-none" style={getBackgroundStyle()}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-0" />
+    <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans flex select-none transition-all duration-1000" style={getBackgroundStyle()}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] z-0" />
       
       {/* Voice Overlay */}
-      {(isCommandMode || isProcessingAI) && (
+      {(isCommandMode || isProcessingAI || newsSearchMode) && (
          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 bg-black/80 px-6 py-3 rounded-full border border-green-500 flex items-center gap-3 animate-fade-in shadow-2xl shadow-green-900/50">
             <div className={`w-3 h-3 bg-green-500 rounded-full ${isProcessingAI ? 'animate-bounce' : 'animate-ping'}`} />
             <span className="text-lg font-bold uppercase tracking-widest text-green-400">
-              {isProcessingAI ? "Processando..." : "Ouvindo..."}
+              {isProcessingAI ? "Processando..." : newsSearchMode ? "Qual notícia?" : "Ouvindo..."}
             </span>
          </div>
       )}
@@ -501,24 +557,24 @@ const App = () => {
           </ResizableWidget>
         </div>
         
-        {/* FOOTER */}
-        <div className="flex justify-between items-end opacity-70">
+        {/* FOOTER - HIGHLIGHTED DATES */}
+        <div className="flex justify-between items-end">
            <ResizableWidget scale={scaleBL} onScaleChange={setScaleBL} origin="bottom left">
-              <div className="flex items-center gap-2 hover:opacity-100 transition-opacity">
-                <ArrowLeft className="text-white/50" /> 
-                <div className="text-left">
-                  <span className="text-xs block uppercase tracking-wider text-white/50">Ontem</span>
-                  <span className="text-2xl font-medium">{yesterday.day}</span>
+              <div className="flex items-center gap-4 hover:scale-105 transition-transform cursor-pointer group">
+                <ArrowLeft className="text-white w-8 h-8 group-hover:-translate-x-2 transition-transform" /> 
+                <div className="text-left drop-shadow-lg">
+                  <span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span>
+                  <span className="text-4xl font-bold text-white">{yesterday.day}</span>
                 </div>
               </div>
            </ResizableWidget>
            <ResizableWidget scale={scaleBR} onScaleChange={setScaleBR} origin="bottom right">
-              <div className="flex items-center gap-2 text-right hover:opacity-100 transition-opacity">
-                <div className="text-right">
-                  <span className="text-xs block uppercase tracking-wider text-white/50">Amanhã</span>
-                  <span className="text-2xl font-medium">{tomorrow.day}</span>
+              <div className="flex items-center gap-4 text-right hover:scale-105 transition-transform cursor-pointer group">
+                <div className="text-right drop-shadow-lg">
+                  <span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span>
+                  <span className="text-4xl font-bold text-white">{tomorrow.day}</span>
                 </div> 
-                <ArrowRight className="text-white/50" />
+                <ArrowRight className="text-white w-8 h-8 group-hover:translate-x-2 transition-transform" />
               </div>
            </ResizableWidget>
         </div>
@@ -534,78 +590,83 @@ const App = () => {
       </div>
 
       {/* SIDEBAR */}
-      <aside ref={sidebarRef} style={{ width: sidebarWidth }} className="relative z-20 bg-black/60 backdrop-blur-2xl border-l border-white/10 flex flex-col shadow-2xl h-full">
-         
-         {/* Top Section: Reminders */}
+      <aside ref={sidebarRef} style={{ width: sidebarWidth }} className="relative z-20 bg-black/60 backdrop-blur-2xl border-l border-white/10 flex flex-col shadow-2xl h-full transition-all duration-300">
+         {/* Lembretes */}
          <div className="flex-1 flex flex-col border-b border-white/10 overflow-hidden relative" style={{ height: `${sidebarSplit * 100}%` }}>
-            <div className="p-6 flex items-center justify-between bg-white/5 z-10 backdrop-blur-md">
-               <div className="flex items-center gap-2 text-yellow-300">
-                 <Bell size={20} /> 
-                 <span className="font-bold tracking-widest text-sm">LEMBRETES</span>
-               </div>
-               <div className="flex gap-3 items-center">
-                  <div title={isFirebaseAvailable ? "Online" : "Offline (Local)"} className={isFirebaseAvailable ? "text-green-500" : "text-red-500"}>
-                    <Activity size={16} />
-                  </div>
-                  <div 
-                    onClick={() => { if(!wakeLockActive) { /* Trigger wake lock request via effect */ } }}
-                    title={wakeLockActive ? "Tela Ativa" : "Toque para ativar"} 
-                    className="text-white/50 cursor-pointer hover:text-white"
+            <div className="p-6 flex items-center justify-between bg-black/40 backdrop-blur-md z-10 border-b border-white/5">
+               <div className="flex items-center gap-2 text-yellow-400"><Bell size={20} /> <span className="font-bold tracking-widest text-sm">LEMBRETES</span></div>
+               <div className="flex gap-3">
+                  <button 
+                    onClick={() => setWakeLockActive(!wakeLockActive)} 
+                    title={wakeLockActive ? "Tela Sempre Ativa" : "Tela Pode Desligar"} 
+                    className={`transition-colors ${wakeLockActive ? 'text-green-400' : 'text-white/30'}`}
                   >
-                    {wakeLockActive ? <Lock size={16} className="text-green-400"/> : <Unlock size={16}/>}
-                  </div>
-                  <button onClick={() => setShowAddReminder(!showAddReminder)} className="hover:text-yellow-400 transition-colors"><Plus size={20}/></button>
+                    {wakeLockActive ? <Lock size={18} /> : <Unlock size={18}/>}
+                  </button>
+                  <button onClick={() => setShowAddReminder(!showAddReminder)} className="text-white hover:text-yellow-400 transition-colors"><Plus size={20}/></button>
                </div>
             </div>
             
             {showAddReminder && (
-              <form onSubmit={handleAddReminder} className="px-6 py-3 animate-fade-in flex gap-2 bg-white/5">
+              <form onSubmit={handleAddReminder} className="p-4 bg-white/5 animate-fade-in flex gap-2 border-b border-white/5">
                  <input 
-                   autoFocus 
-                   value={newReminderText} 
-                   onChange={e => setNewReminderText(e.target.value)} 
-                   className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500" 
-                   placeholder="Novo lembrete..." 
+                    autoFocus 
+                    value={newReminderText} 
+                    onChange={e => setNewReminderText(e.target.value)} 
+                    className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" 
+                    placeholder="Novo lembrete..." 
                  />
-                 <button className="bg-yellow-500 text-black px-4 rounded font-bold hover:bg-yellow-400">→</button>
+                 <button className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 rounded-lg font-bold transition-colors">→</button>
               </form>
             )}
 
-            <div className="flex-1 overflow-hidden relative pause-on-hover">
-               <div className="absolute top-0 left-0 w-full p-6 flex flex-col gap-3 animate-vertical-scroll">
-                  {/* Duplicate list for seamless scrolling */}
+            <div className="flex-1 overflow-hidden relative pause-on-hover bg-gradient-to-b from-transparent to-black/20">
+               <div className="absolute top-0 left-0 w-full p-4 flex flex-col gap-3 animate-vertical-scroll">
                   {[...allReminders, ...allReminders].map((r, i) => (
-                     <div key={`${r.id}-${i}`} className={`p-4 rounded-xl border backdrop-blur-sm transition-colors hover:bg-white/10 ${r.type === 'alert' ? 'bg-red-500/20 border-red-500/30' : 'bg-white/5 border-white/5'}`}>
-                        <div className="flex justify-between text-[10px] opacity-70 mb-1 font-bold uppercase tracking-wider">
-                           <span className={r.type === 'alert' ? 'text-red-300' : 'text-white/50'}>
-                             {r.type === 'alert' ? 'Urgente' : r.type === 'action' ? 'Tarefa' : 'Info'}
+                     <div 
+                        key={`${r.id}-${i}`} 
+                        className={`p-4 rounded-xl border backdrop-blur-sm transition-colors hover:bg-white/10 ${
+                            r.type === 'alert' ? 'bg-red-500/10 border-red-500/30' : 
+                            r.type === 'action' ? 'bg-blue-500/10 border-blue-500/30' : 
+                            'bg-white/5 border-white/5'
+                        }`}
+                     >
+                        <div className="flex justify-between text-[10px] opacity-70 mb-2 font-bold uppercase tracking-wider">
+                           <span className={r.type === 'alert' ? 'text-red-300' : r.type === 'action' ? 'text-blue-300' : 'text-gray-300'}>
+                                {r.type === 'alert' ? 'Urgente' : r.type === 'action' ? 'Tarefa' : 'Info'}
                            </span>
                            <span>{r.time}</span>
                         </div>
-                        <p className="text-lg font-light leading-snug">{r.text}</p>
+                        <p className="text-base font-light leading-snug">{r.text}</p>
                      </div>
                   ))}
-                  {allReminders.length === 0 && <p className="text-center opacity-30 mt-10">Sem lembretes ativos.</p>}
+                  {allReminders.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-40 text-white/30">
+                          <Activity size={32} className="mb-2 opacity-50"/>
+                          <p className="text-sm">Sem lembretes ativos.</p>
+                      </div>
+                  )}
                </div>
             </div>
          </div>
 
          {/* Splitter Handle */}
          <div 
-            className="h-4 cursor-row-resize flex items-center justify-center hover:bg-white/10 -my-2 z-50 relative group" 
+            className="h-1 cursor-row-resize flex items-center justify-center hover:bg-yellow-500/50 transition-colors z-50 relative group" 
             onMouseDown={(e) => { e.preventDefault(); isResizingHeight.current = true; document.body.style.cursor = 'row-resize'; }}
             onTouchStart={(e) => { e.preventDefault(); isResizingHeight.current = true; }}
          >
-             <div className="w-12 h-1 bg-white/20 rounded-full group-hover:bg-yellow-400 transition-colors" />
+             <div className="w-16 h-1 bg-white/20 rounded-full group-hover:h-1.5 transition-all" />
          </div>
 
-         {/* Bottom Section: News */}
+         {/* Notícias */}
          <div className="flex-1 p-6 flex flex-col overflow-hidden bg-black/20">
             <div className="flex items-center gap-2 mb-4 text-blue-300">
-              <Newspaper size={20} /> 
-              <span className="font-bold tracking-widest text-sm">NOTÍCIAS</span>
+                <Newspaper size={20} /> 
+                <span className="font-bold tracking-widest text-sm">NOTÍCIAS</span>
+                {newsSearchMode && <span className="ml-auto text-xs animate-pulse text-green-400">Ouvindo escolha...</span>}
             </div>
-            <div className="flex flex-col gap-3 overflow-y-auto hide-scrollbar pb-20">
+            <div className="flex flex-col gap-3 overflow-y-auto hide-scrollbar">
                <NewsWidget category="Política" color="bg-blue-500" data={newsData.politica} index={newsIndexP} />
                <NewsWidget category="Esportes" color="bg-green-500" data={newsData.esportes} index={newsIndexE} />
                <NewsWidget category="Cultura" color="bg-purple-500" data={newsData.cultura} index={newsIndexC} />
