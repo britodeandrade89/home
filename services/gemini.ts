@@ -1,8 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Use the environment variable if available, otherwise use the provided fallback key.
-// This ensures the app works in environments where process.env is not set (like client-side browsers).
-const apiKey = process.env.API_KEY || "gen-lang-client-0947648253";
+// Restore the original key provided by the user as fallback.
+const apiKey = process.env.API_KEY || "gen-lang-client-0108694645";
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -19,7 +18,7 @@ export const getChefSuggestion = async (userInput: string): Promise<string> => {
     return response.text || "Desculpe, não consegui criar uma receita agora.";
   } catch (error) {
     console.error("Erro no Chef IA:", error);
-    return "Erro ao conectar com o Chef IA.";
+    return "Erro ao conectar com o Chef IA. Verifique sua conexão.";
   }
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Bell, ChefHat, Plus, Lock, Unlock, Download, Newspaper 
+  ArrowRight, ArrowLeft, Bell, ChefHat, Plus, Lock, Unlock, Download, Newspaper, Activity
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -32,6 +32,9 @@ const App = () => {
   const [newsIndexP, setNewsIndexP] = useState(0);
   const [newsIndexE, setNewsIndexE] = useState(0);
   const [newsIndexC, setNewsIndexC] = useState(0);
+
+  // State: System
+  const [isFirebaseAvailable, setIsFirebaseAvailable] = useState(true);
   
   // State: UI
   const [greeting, setGreeting] = useState('Bem-vindo');
@@ -75,16 +78,38 @@ const App = () => {
     }
   };
 
+  const saveLocalReminder = (text: string, type: 'info' | 'alert' | 'action') => {
+    const newReminder: Reminder = {
+      id: Date.now().toString(),
+      text,
+      type,
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date()
+    };
+    const updated = [newReminder, ...reminders];
+    setReminders(updated);
+    localStorage.setItem('local_reminders', JSON.stringify(updated));
+  };
+
   const addReminderToDB = async (text: string, type: 'info' | 'alert' | 'action' = 'info') => {
-    if (!db) return;
-    try {
-      await addDoc(collection(db, "smart_home_reminders"), {
-        text,
-        type,
-        createdAt: serverTimestamp(),
-        time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      });
-    } catch (e) { console.error("Erro Firestore:", e); }
+    // Try Firebase first if available
+    if (db && isFirebaseAvailable) {
+      try {
+        await addDoc(collection(db, "smart_home_reminders"), {
+          text,
+          type,
+          createdAt: serverTimestamp(),
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+      } catch (e) { 
+        console.warn("Firestore save failed, switching to local:", e);
+        setIsFirebaseAvailable(false);
+        saveLocalReminder(text, type);
+      }
+    } else {
+      // Fallback to LocalStorage
+      saveLocalReminder(text, type);
+    }
   };
 
   // --- Voice Logic ---
@@ -163,7 +188,7 @@ const App = () => {
       commandRef.current = cmd;
       cmd.start();
     }, 1200);
-  }, [startWakeWordListener]);
+  }, [startWakeWordListener, isFirebaseAvailable, reminders]); // Added deps to ensure state freshness in closure
 
   // --- Effects ---
 
@@ -195,21 +220,48 @@ const App = () => {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Firebase
+    // Initial Data Load (Hybrid: Firebase + LocalStorage Fallback)
+    let unsub: (() => void) | undefined;
+
     if (db) {
-      const q = query(collection(db, "smart_home_reminders"), orderBy("createdAt", "desc"));
-      const unsub = onSnapshot(q, (snapshot) => {
-        setReminders(snapshot.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data(), 
-            time: doc.data().time || '--:--', 
-            type: (doc.data().type || 'info') as 'info'|'alert'|'action' 
-        } as Reminder)));
-      });
-      return () => { unsub(); clearInterval(timer); window.removeEventListener('beforeinstallprompt', handler); };
+      try {
+        const q = query(collection(db, "smart_home_reminders"), orderBy("createdAt", "desc"));
+        unsub = onSnapshot(q, (snapshot) => {
+          setReminders(snapshot.docs.map(doc => ({ 
+              id: doc.id, 
+              ...doc.data(), 
+              time: doc.data().time || '--:--', 
+              type: (doc.data().type || 'info') as 'info'|'alert'|'action' 
+          } as Reminder)));
+          setIsFirebaseAvailable(true);
+        }, (error) => {
+          console.error("Firestore blocked or failed, using local storage.", error);
+          setIsFirebaseAvailable(false);
+        });
+      } catch (e) {
+         console.error("Firestore init error", e);
+         setIsFirebaseAvailable(false);
+      }
+    } else {
+      setIsFirebaseAvailable(false);
     }
-    return () => { clearInterval(timer); window.removeEventListener('beforeinstallprompt', handler); };
+
+    return () => { if (unsub) unsub(); clearInterval(timer); window.removeEventListener('beforeinstallprompt', handler); };
   }, []);
+
+  // Separate Effect for Offline/Local Mode
+  useEffect(() => {
+    if (!isFirebaseAvailable) {
+      const localData = localStorage.getItem('local_reminders');
+      if (localData) {
+        try {
+          setReminders(JSON.parse(localData));
+        } catch (e) {
+          console.error("Error parsing local reminders", e);
+        }
+      }
+    }
+  }, [isFirebaseAvailable]);
 
   useEffect(() => {
     if (!coords) return;
@@ -296,8 +348,6 @@ const App = () => {
         clearInterval(t1); 
         clearTimeout(t2); 
         clearTimeout(t3); 
-        // Note: Intervals created inside setTimeout are not cleared here for simplicity 
-        // in this snippet, but 'mounted' check prevents state updates on unmounted component.
     };
   }, []); // Only run on mount, internal logic handles updates
 
@@ -494,6 +544,9 @@ const App = () => {
                  <span className="font-bold tracking-widest text-sm">LEMBRETES</span>
                </div>
                <div className="flex gap-3 items-center">
+                  <div title={isFirebaseAvailable ? "Online" : "Offline (Local)"} className={isFirebaseAvailable ? "text-green-500" : "text-red-500"}>
+                    <Activity size={16} />
+                  </div>
                   <div 
                     onClick={() => { if(!wakeLockActive) { /* Trigger wake lock request via effect */ } }}
                     title={wakeLockActive ? "Tela Ativa" : "Toque para ativar"} 
