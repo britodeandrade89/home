@@ -430,9 +430,17 @@ const App = () => {
              <div className="flex gap-2 mb-2">
                 <button 
                     onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} 
-                    className={`p-2 rounded-full shadow-lg transition-colors ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}
+                    className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}
+                    title={wakeLockActive ? "Desativar tela sempre ativa" : "Ativar tela sempre ativa"}
                 >
-                    {wakeLockActive ? <Lock size={16} /> : <div className="flex items-center gap-1"><Unlock size={16}/><span className="text-xs font-bold uppercase">Ativar Tela</span></div>}
+                    {wakeLockActive ? (
+                        <Lock size={16} />
+                    ) : (
+                        <>
+                            <Unlock size={16}/>
+                            <span className="text-xs font-bold uppercase whitespace-nowrap">Tela Sempre Ativa</span>
+                        </>
+                    )}
                 </button>
                 {installPrompt && (
                     <button onClick={(e) => { e.stopPropagation(); installPrompt.prompt(); }} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-full shadow-lg">
