@@ -60,9 +60,32 @@ const App = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       utterance.rate = rate; 
+      
+      // Tenta encontrar uma voz masculina ou mais grave
       const voices = window.speechSynthesis.getVoices();
-      const ptVoice = voices.find(v => v.lang.includes('pt-BR') || v.lang.includes('pt-PT'));
-      if (ptVoice) utterance.voice = ptVoice;
+      const preferredVoice = voices.find(v => 
+        (v.lang.includes('pt-BR') || v.lang.includes('pt-PT')) && 
+        (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('felipe') || v.name.toLowerCase().includes('male'))
+      ) || voices.find(v => v.lang.includes('pt-BR'));
+      
+      if (preferredVoice) {
+          utterance.voice = preferredVoice;
+          // Se não achou uma voz explicitamente masculina, tenta baixar o tom (pitch)
+          if (!preferredVoice.name.toLowerCase().includes('male') && !preferredVoice.name.toLowerCase().includes('daniel')) {
+              utterance.pitch = 0.8; 
+          }
+      }
+
+      // Parar reconhecimento enquanto fala para evitar loop
+      if (wakeWordRef.current) wakeWordRef.current.stop();
+      
+      utterance.onend = () => {
+          // Reiniciar reconhecimento após falar
+          if (!isCommandMode) {
+            try { wakeWordRef.current.start(); } catch(e) {}
+          }
+      };
+
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -155,7 +178,10 @@ const App = () => {
     };
 
     recognition.onend = () => {
-      if (!isCommandMode) try { recognition.start(); } catch (e) {}
+      // Check if TTS is speaking before restarting
+      if (!window.speechSynthesis.speaking && !isCommandMode) {
+         try { recognition.start(); } catch (e) {}
+      }
     };
 
     wakeWordRef.current = recognition;
@@ -344,30 +370,86 @@ const App = () => {
   const yesterday = getDateInfo(new Date(new Date().setDate(currentTime.getDate() - 1)));
   const tomorrow = getDateInfo(new Date(new Date().setDate(currentTime.getDate() + 1)));
 
-  // --- BACKGROUND ---
+  // --- BACKGROUND & ATMOSPHERE ---
   const getBackgroundStyle = () => {
      const code = weather.weathercode;
      const isDay = weather.is_day === 1;
-     let imgUrl = 'https://images.unsplash.com/photo-1622396481328-9b1b78cdd9fd?q=80&w=1920&auto=format&fit=crop';
+     const temp = Number(weather.temperature);
+     const rainProb = weather.precipitation_probability;
      
-     if (code === 0 || code === 1) {
-        imgUrl = isDay 
-          ? 'https://images.unsplash.com/photo-1622396481328-9b1b78cdd9fd?q=80&w=1920&auto=format&fit=crop' 
-          : 'https://images.unsplash.com/photo-1506765515384-028b60a970df?q=80&w=1920&auto=format&fit=crop';
-     } else if (code >= 2 && code <= 48) {
-        imgUrl = isDay
-          ? 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?q=80&w=1920&auto=format&fit=crop'
-          : 'https://images.unsplash.com/photo-1536746803623-cef8708094dd?q=80&w=1920&auto=format&fit=crop';
-     } else if (code >= 51 && code <= 67) {
-        imgUrl = 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=1920&auto=format&fit=crop';
-     } else if (code >= 80) {
-        imgUrl = 'https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?q=80&w=1920&auto=format&fit=crop';
+     // Base Image ID from Unsplash (Direct High Quality IDs)
+     let imageId = '1622396481328-9b1b78cdd9fd'; // Fallback Sunny
+     let overlayColor = 'rgba(0,0,0,0.3)'; // Default dimmer
+
+     // 1. TEMPESTADES (Prioridade Máxima) - 95, 96, 99
+     if (code >= 95) {
+        imageId = '1605727216801-e27ce1d0cc28'; // Lightning storm
+        overlayColor = 'rgba(20, 0, 30, 0.4)'; // Purple/Dark tint
      }
+     // 2. NEVE / GRANIZO - 71-77, 85, 86
+     else if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+        imageId = '1478265866628-9781c7d87995'; // Snow landscape
+        overlayColor = 'rgba(200, 220, 255, 0.2)'; // Icy blue tint
+     }
+     // 3. CHUVA (Várias intensidades) - 51-67, 80-82
+     else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+        if (rainProb > 80 || code >= 63) {
+            // Chuva Forte
+            imageId = '1515694346937-94d85e41e6f0'; // Rain on glass/Dark
+            overlayColor = 'rgba(0, 10, 30, 0.5)'; // Dark blue tint
+        } else {
+            // Chuva Leve / Garoa
+            imageId = '1496034663008-e0d0a0858d46'; // Rain nature
+            overlayColor = 'rgba(50, 60, 70, 0.3)'; // Grey tint
+        }
+     }
+     // 4. NEVOEIRO - 45, 48
+     else if (code === 45 || code === 48) {
+        imageId = '1487621167305-5d248087c724'; // Foggy forest
+        overlayColor = 'rgba(150, 150, 150, 0.2)'; // Grey mist
+     }
+     // 5. NUBLADO (Com nuances) - 2, 3
+     else if (code === 2 || code === 3) {
+        if (isDay) {
+            imageId = rainProb > 40 
+                ? '1534088568595-a066f410bcda' // Darker clouds
+                : '1595865728041-a368c48bab5f'; // Fluffy clouds
+            overlayColor = 'rgba(0,0,0,0.2)';
+        } else {
+            imageId = '1536746803623-cef8708094dd'; // Night clouds
+            overlayColor = 'rgba(10, 10, 20, 0.5)';
+        }
+     }
+     // 6. CÉU LIMPO (Com nuances de temperatura) - 0, 1
+     else {
+        if (isDay) {
+            if (temp > 28) {
+                // Calor Extremo
+                imageId = '1504370805625-d32c54b16100'; // Hot sunny field/flare
+                overlayColor = 'rgba(255, 100, 0, 0.1)'; // Warm orange tint
+            } else if (temp < 15) {
+                // Frio com sol
+                imageId = '1477601263568-180e2c6d046e'; // Winter sun/crisp
+                overlayColor = 'rgba(0, 100, 255, 0.1)'; // Cool blue tint
+            } else {
+                // Dia agradável
+                imageId = '1622396481328-9b1b78cdd9fd'; // Standard beautiful sky
+                overlayColor = 'rgba(0,0,0,0.1)';
+            }
+        } else {
+            // Noite Estrelada
+            imageId = '1532978873691-590b122e7876'; // Stars
+            overlayColor = 'rgba(0, 0, 20, 0.4)'; // Deep night blue
+        }
+     }
+
+     const finalUrl = `https://images.unsplash.com/photo-${imageId}?q=80&w=1920&auto=format&fit=crop`;
+
      return { 
-       backgroundImage: `url("${imgUrl}")`, 
+       backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url("${finalUrl}")`, 
        backgroundSize: 'cover', 
        backgroundPosition: 'center', 
-       transition: 'background-image 1s ease-in-out' 
+       transition: 'background-image 1.5s ease-in-out' 
      };
   };
 
@@ -392,7 +474,6 @@ const App = () => {
 
   return (
     <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans select-none transition-all duration-1000" style={getBackgroundStyle()}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-0" />
       
       {/* Voice Activity Overlay */}
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
