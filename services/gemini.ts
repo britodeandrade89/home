@@ -54,8 +54,7 @@ export const fetchNews = async (category: string): Promise<string[]> => {
     console.warn(`Tentativa 1 (Search) falhou para ${category}:`, error);
   }
 
-  // 2. FALLBACK: CONHECIMENTO INTERNO (Sem ferramenta de busca)
-  // Útil se a ferramenta de busca falhar ou bloquear por região/dispositivo
+  // 2. FALLBACK: CONHECIMENTO INTERNO
   try {
     const fallbackResponse = await ai.models.generateContent({
       model: model,
@@ -74,14 +73,13 @@ export const fetchNews = async (category: string): Promise<string[]> => {
     if (fallbackJson) {
       const headlines = JSON.parse(fallbackJson);
       if (Array.isArray(headlines) && headlines.length > 0) {
-        return headlines.map(h => `${h} (Destaque)`); // Marca visualmente
+        return headlines.map(h => `${h} (Destaque)`); 
       }
     }
   } catch (error2) {
     console.error(`Tentativa 2 (Internal) falhou para ${category}:`, error2);
   }
 
-  // 3. RETORNO DE SEGURANÇA
   return [
     `Não foi possível carregar ${category}.`,
     "Verifique sua conexão com a internet.",
@@ -93,13 +91,18 @@ export const generateNewsReport = async (headline: string): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `O usuário quer ouvir sobre esta notícia: "${headline}".
+      contents: `O usuário quer ouvir sobre esta notícia ou tópico: "${headline}".
+      Use a ferramenta googleSearch para buscar informações atualizadas sobre isso AGORA.
       Atue como um âncora de jornal. Escreva um resumo completo, informativo e profissional de 3 parágrafos sobre esse tópico, como se estivesse lendo a notícia no rádio.
-      Não invente fatos, baseie-se no que é provável para essa manchete ou use seu conhecimento geral se for um fato conhecido. Se for muito recente, explique o contexto.`,
+      Seja direto e informativo.`,
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
     });
     return response.text || "Não consegui carregar os detalhes desta notícia.";
   } catch (error) {
-    return "Erro ao gerar o relatório da notícia.";
+    console.error("News report generation failed", error);
+    return "Erro ao gerar o relatório da notícia. Tente novamente.";
   }
 };
 
@@ -115,9 +118,10 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
     const model = "gemini-2.5-flash";
     const systemInstruction = `
       Você é o "Smart Home". Analise o comando do usuário.
-      1. Se o usuário disser "ler notícias", "notícias", "o que está acontecendo" ou similar, retorne action="read_news_init" e response="Qual notícia você quer que eu leia?".
-      2. Se for para adicionar um lembrete, tarefa ou compromisso, retorne action="add_reminder".
-      3. Se for uma pergunta geral ou conversa, retorne action="chat".
+      1. Se o usuário disser apenas "ler notícias", "notícias", "o que está acontecendo", retorne action="read_news_init" e response="Qual notícia você quer que eu leia?".
+      2. Se o usuário disser "ler notícias sobre [TÓPICO]" ou "notícias de [TÓPICO]", retorne action="read_news_init", text="[TÓPICO]" e response="Buscando notícias sobre [TÓPICO]...".
+      3. Se for para adicionar um lembrete, tarefa ou compromisso, retorne action="add_reminder".
+      4. Se for uma pergunta geral ou conversa, retorne action="chat".
       Classifique lembretes em: 'info', 'alert' (urgente) ou 'action' (tarefa).
       Responda APENAS JSON.
     `;
@@ -132,7 +136,7 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
           type: Type.OBJECT,
           properties: {
             action: { type: Type.STRING, enum: ["add_reminder", "chat", "read_news_init"] },
-            text: { type: Type.STRING, description: "O texto do lembrete, se aplicável" },
+            text: { type: Type.STRING, description: "O texto do lembrete ou tópico da notícia" },
             type: { type: Type.STRING, enum: ["info", "alert", "action"], description: "Tipo do lembrete" },
             response: { type: Type.STRING, description: "Resposta falada para o usuário" }
           },

@@ -211,8 +211,16 @@ const App = () => {
           const result = await processVoiceCommandAI(command);
           if (result) {
             if (result.action === 'read_news_init') {
-              setNewsSearchMode(true);
-              speak(result.response || "Qual notícia?");
+              if (result.text) {
+                // Topic detected immediately
+                speak(result.response || "Buscando...");
+                const report = await generateNewsReport(result.text);
+                speak(report, 1.25);
+              } else {
+                // Ask for topic
+                setNewsSearchMode(true);
+                speak(result.response || "Qual notícia?");
+              }
             } else if (result.action === 'add_reminder' && result.text) {
                await addReminderToDB(result.text, result.type || 'info');
                speak(`Adicionado: ${result.text}`);
