@@ -10,10 +10,16 @@ interface WeatherWidgetProps {
 
 const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport }) => {
   const getWeatherIcon = (code: number, isDay: number = 1) => {
-    if (code >= 95) return <CloudLightning className="text-purple-300 w-16 h-16 drop-shadow-lg" />;
-    if (code >= 51) return <CloudRain className="text-blue-300 w-16 h-16 drop-shadow-lg" />;
-    if (code >= 2) return <Cloud className="text-gray-300 w-16 h-16 drop-shadow-lg" />;
-    return isDay === 1 ? <Sun className="text-yellow-300 w-16 h-16 drop-shadow-lg" /> : <Moon className="text-yellow-100 w-16 h-16 drop-shadow-lg" />;
+    // Storm (Thunder)
+    if (code >= 95) return <div className="animate-storm"><CloudLightning className="text-purple-300 w-16 h-16 drop-shadow-lg" /></div>;
+    // Rain
+    if (code >= 51) return <div className="animate-rain"><CloudRain className="text-blue-300 w-16 h-16 drop-shadow-lg" /></div>;
+    // Cloud (Cloudy, Fog, Overcast)
+    if (code >= 2) return <div className="animate-float"><Cloud className="text-gray-300 w-16 h-16 drop-shadow-lg" /></div>;
+    // Sun or Moon
+    return isDay === 1 
+      ? <div className="animate-sun"><Sun className="text-yellow-300 w-16 h-16 drop-shadow-lg" /></div> 
+      : <div className="animate-float"><Moon className="text-yellow-100 w-16 h-16 drop-shadow-lg" /></div>;
   };
 
   const getWeekDay = (dateStr: string) => {
@@ -38,7 +44,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
                 <span className="flex items-center gap-1"><Droplets size={10}/> {weather.precipitation_probability}%</span>
              </div>
           </div>
-          <div className="animate-pulse">{getWeatherIcon(weather.weathercode, weather.is_day)}</div>
+          <div className="animate-fade-in">{getWeatherIcon(weather.weathercode, weather.is_day)}</div>
        </div>
 
        {/* 2. SCROLLABLE CONTENT (Vertical) */}
