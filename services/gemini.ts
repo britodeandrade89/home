@@ -106,6 +106,60 @@ export const generateNewsReport = async (headline: string): Promise<string> => {
   }
 };
 
+export const generateBeachReport = async (weatherData: any, locationName: string): Promise<any> => {
+  try {
+    const prompt = `
+      Você é um especialista local em Maricá, RJ. Analise os dados do tempo: 
+      Temp: ${weatherData.temperature}°C, Vento: ${weatherData.wind_speed}km/h, Chuva: ${weatherData.precipitation_probability}%.
+      
+      Gere um relatório JSON curto sobre as condições das praias (Ponta Negra, Barra de Maricá, Itaipuaçu).
+      1. Avalie: "Própria para banho" (Sim/Não/Cuidado).
+      2. Estime a temperatura da água (baseado no ar).
+      3. Chance de "Lagomar" (formação de piscinas naturais em Itaipuaçu/Ponta Negra - geralmente ocorre pós-ressaca ou maré específica, invente uma probabilidade baseada no vento).
+      4. Indique a MELHOR praia para ir agora saindo de "${locationName}".
+      5. Gere um link do Google Maps para a praia escolhida.
+      
+      Retorne JSON:
+      {
+        "swimCondition": "Boa" | "Perigosa" | "Regular",
+        "waterTemp": "XX°C",
+        "waves": "Calmo" | "Agitado" | "Ressaca",
+        "lagomarProb": "Baixa" | "Média" | "Alta",
+        "bestBeach": "Nome da Praia",
+        "reason": "Motivo curto (ex: menos vento, água clara)",
+        "routeLink": "https://www.google.com/maps/dir/?api=1&destination=...",
+        "windComment": "Comentário sobre o vento na areia"
+      }
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+             swimCondition: { type: Type.STRING },
+             waterTemp: { type: Type.STRING },
+             waves: { type: Type.STRING },
+             lagomarProb: { type: Type.STRING },
+             bestBeach: { type: Type.STRING },
+             reason: { type: Type.STRING },
+             routeLink: { type: Type.STRING },
+             windComment: { type: Type.STRING }
+          }
+        }
+      }
+    });
+    
+    return JSON.parse(response.text || "{}");
+  } catch (e) {
+    console.error("Beach report failed", e);
+    return null;
+  }
+};
+
 export interface VoiceCommandResult {
   action: "add_reminder" | "chat" | "read_news_init";
   text?: string;

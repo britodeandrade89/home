@@ -5,7 +5,7 @@ import {
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather';
-import { processVoiceCommandAI, fetchNews, generateNewsReport } from './services/gemini';
+import { processVoiceCommandAI, fetchNews, generateNewsReport, generateBeachReport } from './services/gemini';
 import { Reminder, NewsData, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
@@ -16,9 +16,10 @@ import RemindersWidget from './components/RemindersWidget';
 const App = () => {
   // --- STATE ---
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [weather, setWeather] = useState<WeatherData>({ temperature: '25', weathercode: 0, is_day: 1, apparent_temperature: '27', precipitation_probability: 0 });
+  const [weather, setWeather] = useState<WeatherData>({ temperature: '25', weathercode: 0, is_day: 1, apparent_temperature: '27', precipitation_probability: 0, wind_speed: 0 });
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locationName, setLocationName] = useState('Localizando...');
+  const [beachReport, setBeachReport] = useState<any>(null);
   
   const [reminders, setReminders] = useState<Reminder[]>([]);
   
@@ -39,7 +40,7 @@ const App = () => {
     clock: { scale: 1, x: 40, y: 40 },
     weather: { scale: 1, x: 0, y: 40 },
     reminders: { scale: 1, x: 0, y: 200 },
-    date: { scale: 2, x: 0, y: 0 }, // Scale 2.0 as requested
+    date: { scale: 2, x: 0, y: 0 }, 
     prev: { scale: 1, x: 40, y: 0 },
     next: { scale: 1, x: 0, y: 0 },
   });
@@ -61,7 +62,6 @@ const App = () => {
       utterance.lang = 'pt-BR';
       utterance.rate = rate; 
       
-      // Tenta encontrar uma voz masculina ou mais grave
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(v => 
         (v.lang.includes('pt-BR') || v.lang.includes('pt-PT')) && 
@@ -70,17 +70,14 @@ const App = () => {
       
       if (preferredVoice) {
           utterance.voice = preferredVoice;
-          // Se não achou uma voz explicitamente masculina, tenta baixar o tom (pitch)
           if (!preferredVoice.name.toLowerCase().includes('male') && !preferredVoice.name.toLowerCase().includes('daniel')) {
               utterance.pitch = 0.8; 
           }
       }
 
-      // Parar reconhecimento enquanto fala para evitar loop
       if (wakeWordRef.current) wakeWordRef.current.stop();
       
       utterance.onend = () => {
-          // Reiniciar reconhecimento após falar
           if (!isCommandMode) {
             try { wakeWordRef.current.start(); } catch(e) {}
           }
@@ -178,7 +175,6 @@ const App = () => {
     };
 
     recognition.onend = () => {
-      // Check if TTS is speaking before restarting
       if (!window.speechSynthesis.speaking && !isCommandMode) {
          try { recognition.start(); } catch (e) {}
       }
@@ -212,12 +208,10 @@ const App = () => {
           if (result) {
             if (result.action === 'read_news_init') {
               if (result.text) {
-                // Topic detected immediately
                 speak(result.response || "Buscando...");
                 const report = await generateNewsReport(result.text);
                 speak(report, 1.25);
               } else {
-                // Ask for topic
                 setNewsSearchMode(true);
                 speak(result.response || "Qual notícia?");
               }
@@ -253,58 +247,34 @@ const App = () => {
 
   // --- LAYOUT & EFFECTS ---
 
-  // Handle auto-positioning on resize/rotate
   const handleResize = useCallback(() => {
-    // Only auto-adjust if we want strict positioning or if screen changed drastically
     const w = window.innerWidth;
     const h = window.innerHeight;
-
     setWidgets(prev => ({
         ...prev,
-        // CLOCK: Top Left
         clock: { ...prev.clock, x: 40, y: 40 },
-        
-        // WEATHER: Top Right
-        weather: { 
-          ...prev.weather, 
-          x: w - 380, // Approx widget width
-          y: 40 
-        },
-
-        // REMINDERS: Right side, below weather
-        reminders: {
-          ...prev.reminders,
-          x: w - 380,
-          y: 220 // Below weather
-        },
-
-        // YESTERDAY: Bottom Left
-        prev: { 
-          ...prev.prev, 
-          x: 40, 
-          y: h - 180 
-        },
-
-        // TOMORROW: Bottom Right
-        next: { 
-          ...prev.next, 
-          x: w - 250, 
-          y: h - 180 
-        },
-
-        // TODAY: Center (Scale 2.0)
-        date: { 
-           ...prev.date,
-           x: (w / 2) - 150, // Approx half width of widget at scale 1
-           y: (h / 2) - 150 
-        }
+        weather: { ...prev.weather, x: w - 380, y: 40 },
+        reminders: { ...prev.reminders, x: w - 380, y: 560 }, // Push down below taller weather widget
+        prev: { ...prev.prev, x: 40, y: h - 180 },
+        next: { ...prev.next, x: w - 250, y: h - 180 },
+        date: { ...prev.date, x: (w / 2) - 150, y: (h / 2) - 150 }
     }));
+  }, []);
+
+  // 15 MINUTE FORCED RELOAD LOGIC
+  useEffect(() => {
+    // Reload page every 15 minutes (15 * 60 * 1000 ms)
+    const forcedRefreshInterval = setInterval(() => {
+        window.location.reload(); 
+    }, 900000); 
+
+    return () => clearInterval(forcedRefreshInterval);
   }, []);
 
   useEffect(() => {
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
-    handleResize(); // Initial calculation
+    handleResize();
 
     const timer = setInterval(() => {
       const now = new Date();
@@ -324,7 +294,6 @@ const App = () => {
     const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Firebase Sync
     if (db) {
         const q = query(collection(db, "smart_home_reminders"), orderBy("createdAt", "desc"));
         const unsub = onSnapshot(q, (snapshot) => {
@@ -346,17 +315,22 @@ const App = () => {
     };
   }, [handleResize]);
 
-  // Weather Sync
+  // Weather & Beach Report Sync
   useEffect(() => {
     if (!coords) return;
     const loadWeather = async () => {
       const data = await fetchWeatherData(coords);
-      if (data) setWeather(data);
+      if (data) {
+          setWeather(data);
+          // Generate Beach Report
+          const report = await generateBeachReport(data, locationName);
+          if (report) setBeachReport(report);
+      }
     };
     loadWeather();
     const interval = setInterval(loadWeather, 300000);
     return () => clearInterval(interval);
-  }, [coords]);
+  }, [coords, locationName]);
 
   // Voice Init
   useEffect(() => {
@@ -368,7 +342,7 @@ const App = () => {
   }, [startWakeWordListener]);
 
 
-  // --- DATE HELPERS ---
+  // --- HELPERS ---
   const getDateInfo = (d: Date) => ({
     day: d.getDate(),
     weekday: new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(d),
@@ -378,76 +352,63 @@ const App = () => {
   const yesterday = getDateInfo(new Date(new Date().setDate(currentTime.getDate() - 1)));
   const tomorrow = getDateInfo(new Date(new Date().setDate(currentTime.getDate() + 1)));
 
-  // --- BACKGROUND & ATMOSPHERE ---
+  // --- BACKGROUND ---
   const getBackgroundStyle = () => {
      const code = weather.weathercode;
      const isDay = weather.is_day === 1;
      const temp = Number(weather.temperature);
      const rainProb = weather.precipitation_probability;
      
-     // Base Image ID from Unsplash (Direct High Quality IDs)
-     let imageId = '1622396481328-9b1b78cdd9fd'; // Fallback Sunny
-     let overlayColor = 'rgba(0,0,0,0.3)'; // Default dimmer
+     let imageId = '1622396481328-9b1b78cdd9fd'; 
+     let overlayColor = 'rgba(0,0,0,0.3)'; 
 
-     // 1. TEMPESTADES (Prioridade Máxima) - 95, 96, 99
      if (code >= 95) {
-        imageId = '1605727216801-e27ce1d0cc28'; // Lightning storm
-        overlayColor = 'rgba(20, 0, 30, 0.4)'; // Purple/Dark tint
+        imageId = '1605727216801-e27ce1d0cc28'; 
+        overlayColor = 'rgba(20, 0, 30, 0.4)'; 
      }
-     // 2. NEVE / GRANIZO - 71-77, 85, 86
      else if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
-        imageId = '1478265866628-9781c7d87995'; // Snow landscape
-        overlayColor = 'rgba(200, 220, 255, 0.2)'; // Icy blue tint
+        imageId = '1478265866628-9781c7d87995'; 
+        overlayColor = 'rgba(200, 220, 255, 0.2)'; 
      }
-     // 3. CHUVA (Várias intensidades) - 51-67, 80-82
      else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
         if (rainProb > 80 || code >= 63) {
-            // Chuva Forte
-            imageId = '1515694346937-94d85e41e6f0'; // Rain on glass/Dark
-            overlayColor = 'rgba(0, 10, 30, 0.5)'; // Dark blue tint
+            imageId = '1515694346937-94d85e41e6f0'; 
+            overlayColor = 'rgba(0, 10, 30, 0.5)'; 
         } else {
-            // Chuva Leve / Garoa
-            imageId = '1496034663008-e0d0a0858d46'; // Rain nature
-            overlayColor = 'rgba(50, 60, 70, 0.3)'; // Grey tint
+            imageId = '1496034663008-e0d0a0858d46'; 
+            overlayColor = 'rgba(50, 60, 70, 0.3)'; 
         }
      }
-     // 4. NEVOEIRO - 45, 48
      else if (code === 45 || code === 48) {
-        imageId = '1487621167305-5d248087c724'; // Foggy forest
-        overlayColor = 'rgba(150, 150, 150, 0.2)'; // Grey mist
+        imageId = '1487621167305-5d248087c724'; 
+        overlayColor = 'rgba(150, 150, 150, 0.2)'; 
      }
-     // 5. NUBLADO (Com nuances) - 2, 3
      else if (code === 2 || code === 3) {
         if (isDay) {
             imageId = rainProb > 40 
-                ? '1534088568595-a066f410bcda' // Darker clouds
-                : '1595865728041-a368c48bab5f'; // Fluffy clouds
+                ? '1534088568595-a066f410bcda' 
+                : '1595865728041-a368c48bab5f'; 
             overlayColor = 'rgba(0,0,0,0.2)';
         } else {
-            imageId = '1536746803623-cef8708094dd'; // Night clouds
+            imageId = '1536746803623-cef8708094dd'; 
             overlayColor = 'rgba(10, 10, 20, 0.5)';
         }
      }
-     // 6. CÉU LIMPO (Com nuances de temperatura) - 0, 1
      else {
         if (isDay) {
             if (temp > 28) {
-                // Calor Extremo
-                imageId = '1504370805625-d32c54b16100'; // Hot sunny field/flare
-                overlayColor = 'rgba(255, 100, 0, 0.1)'; // Warm orange tint
+                imageId = '1504370805625-d32c54b16100'; 
+                overlayColor = 'rgba(255, 100, 0, 0.1)'; 
             } else if (temp < 15) {
-                // Frio com sol
-                imageId = '1477601263568-180e2c6d046e'; // Winter sun/crisp
-                overlayColor = 'rgba(0, 100, 255, 0.1)'; // Cool blue tint
+                imageId = '1477601263568-180e2c6d046e'; 
+                overlayColor = 'rgba(0, 100, 255, 0.1)'; 
             } else {
-                // Dia agradável
-                imageId = '1622396481328-9b1b78cdd9fd'; // Standard beautiful sky
+                imageId = '1622396481328-9b1b78cdd9fd'; 
                 overlayColor = 'rgba(0,0,0,0.1)';
             }
         } else {
-            // Noite Estrelada
-            imageId = '1532978873691-590b122e7876'; // Stars
-            overlayColor = 'rgba(0, 0, 20, 0.4)'; // Deep night blue
+            imageId = '1532978873691-590b122e7876'; 
+            overlayColor = 'rgba(0, 0, 20, 0.4)'; 
         }
      }
 
@@ -461,7 +422,6 @@ const App = () => {
      };
   };
 
-  // --- START SCREEN ---
   if (!hasStarted) {
     return (
       <div 
@@ -477,13 +437,11 @@ const App = () => {
     );
   }
 
-  // --- MAIN RENDER ---
   const greeting = currentTime.getHours() < 12 ? 'Bom dia' : currentTime.getHours() < 18 ? 'Boa tarde' : 'Boa noite';
 
   return (
     <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans select-none transition-all duration-1000" style={getBackgroundStyle()}>
       
-      {/* Voice Activity Overlay */}
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 bg-black/80 px-6 py-3 rounded-full border border-green-500 flex items-center gap-3 animate-fade-in shadow-2xl pointer-events-none">
             <div className={`w-3 h-3 bg-green-500 rounded-full ${isProcessingAI ? 'animate-bounce' : 'animate-ping'}`} />
@@ -493,10 +451,8 @@ const App = () => {
          </div>
       )}
 
-      {/* --- WIDGETS LAYER --- */}
       <section className="absolute inset-0 z-10 w-full h-full">
         
-        {/* CLOCK (TOP LEFT) */}
         <ResizableWidget 
             scale={widgets.clock.scale} 
             locked={isLayoutLocked}
@@ -507,7 +463,6 @@ const App = () => {
              <ClockWidget currentTime={currentTime} greeting={greeting} />
         </ResizableWidget>
 
-        {/* WEATHER (TOP RIGHT) */}
         <ResizableWidget 
             scale={widgets.weather.scale}
             locked={isLayoutLocked}
@@ -537,11 +492,10 @@ const App = () => {
                     </button>
                 )}
               </div>
-              <WeatherWidget weather={weather} locationName={locationName} />
+              <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
            </div>
         </ResizableWidget>
 
-        {/* REMINDERS (RIGHT - BELOW WEATHER) */}
         <ResizableWidget 
             scale={widgets.reminders.scale}
             locked={isLayoutLocked}
@@ -556,7 +510,6 @@ const App = () => {
            />
         </ResizableWidget>
 
-        {/* TODAY DATE (CENTER - 2X SCALE) */}
         <ResizableWidget 
             scale={widgets.date.scale} 
             locked={isLayoutLocked}
@@ -573,7 +526,6 @@ const App = () => {
             </div>
         </ResizableWidget>
 
-        {/* YESTERDAY (BOTTOM LEFT) */}
         <ResizableWidget 
             scale={widgets.prev.scale} 
             locked={isLayoutLocked}
@@ -593,7 +545,6 @@ const App = () => {
               </div>
         </ResizableWidget>
 
-        {/* TOMORROW (BOTTOM RIGHT) */}
         <ResizableWidget 
             scale={widgets.next.scale} 
             locked={isLayoutLocked}
@@ -615,7 +566,6 @@ const App = () => {
 
       </section>
 
-      {/* --- LOCK TOGGLE (BOTTOM CENTER/RIGHT) --- */}
       <div className="absolute bottom-6 right-1/2 translate-x-1/2 z-50">
         <button 
           onClick={() => setIsLayoutLocked(!isLayoutLocked)}

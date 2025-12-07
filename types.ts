@@ -1,9 +1,19 @@
+export interface DailyForecast {
+  time: string[];
+  weathercode: number[];
+  temperature_2m_max: number[];
+  temperature_2m_min: number[];
+  precipitation_probability_max: number[];
+}
+
 export interface WeatherData {
   temperature: number | string;
   weathercode: number;
   is_day: number;
   apparent_temperature: number | string;
   precipitation_probability: number;
+  wind_speed: number;
+  daily?: DailyForecast;
 }
 
 export interface Reminder {
