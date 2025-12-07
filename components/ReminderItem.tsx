@@ -14,12 +14,27 @@ const ReminderItem: React.FC<ReminderItemProps> = ({ reminder, onDelete }) => {
 
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     isDragging.current = true;
-    startX.current = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    if ('touches' in e && e.touches.length > 0) {
+        startX.current = e.touches[0].clientX;
+    } else if ('clientX' in e) {
+        startX.current = (e as React.MouseEvent).clientX;
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!isDragging.current) return;
-    const currentX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    let currentX = 0;
+    
+    if ('touches' in e) {
+        if (e.touches.length > 0) {
+            currentX = e.touches[0].clientX;
+        } else {
+            return;
+        }
+    } else {
+        currentX = (e as React.MouseEvent).clientX;
+    }
+
     const diff = currentX - startX.current;
     
     // Only allow dragging left (negative x)

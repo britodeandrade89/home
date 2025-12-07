@@ -166,7 +166,9 @@ const App = () => {
     recognition.lang = 'pt-BR';
 
     recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results).map((r: any) => r[0].transcript).join(' ').toLowerCase();
+      if (!event.results || event.results.length === 0) return;
+      
+      const transcript = Array.from(event.results).map((r: any) => (r[0] ? r[0].transcript : '')).join(' ').toLowerCase();
       const lastSlice = transcript.slice(-40);
       if (lastSlice.includes('olá smart home') || lastSlice.includes('ola smart home')) {
         recognition.stop();
@@ -195,6 +197,10 @@ const App = () => {
       cmd.lang = 'pt-BR';
 
       cmd.onresult = async (e: any) => {
+        if (!e.results || e.results.length === 0 || !e.results[0] || e.results[0].length === 0) {
+           return;
+        }
+
         const command = e.results[0][0].transcript;
         setIsProcessingAI(true);
         

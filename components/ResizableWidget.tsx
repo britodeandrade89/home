@@ -8,6 +8,7 @@ interface ResizableWidgetProps {
   position: { x: number; y: number };
   onPositionChange: (x: number, y: number) => void;
   className?: string;
+  locked?: boolean;
 }
 
 const ResizableWidget: React.FC<ResizableWidgetProps> = ({ 
@@ -16,7 +17,8 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
   onScaleChange, 
   position,
   onPositionChange,
-  className = "" 
+  className = "",
+  locked = false
 }) => {
   const [isSelected, setIsSelected] = useState(false);
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -47,7 +49,7 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
 
   // --- DRAG HANDLERS ---
   const handleDragStart = (clientX: number, clientY: number) => {
-    if (isResizing.current) return; // Don't drag if resizing
+    if (locked || isResizing.current) return;
     isDragging.current = true;
     dragStart.current = { x: clientX, y: clientY };
     initialPos.current = { ...position };
@@ -62,6 +64,7 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
 
   // --- RESIZE HANDLERS ---
   const handleResizeStart = (clientY: number) => {
+    if (locked) return;
     isResizing.current = true;
     resizeStart.current = clientY;
     startScale.current = scale;
@@ -92,10 +95,10 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
     };
     
     const onTouchMove = (e: TouchEvent) => {
-      if (isDragging.current) {
+      if (isDragging.current && e.touches.length > 0) {
         handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
       }
-      if (isResizing.current) {
+      if (isResizing.current && e.touches.length > 0) {
         handleResizeMove(e.touches[0].clientY);
       }
     };
@@ -113,39 +116,46 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
       document.removeEventListener("mouseup", onUp);
       document.removeEventListener("touchend", onUp);
     };
-  }, [position, scale]); // Deps required for closures
+  }, [position, scale, locked]);
 
   return (
     <div 
       ref={widgetRef} 
-      className={`absolute transition-colors duration-200 cursor-grab active:cursor-grabbing ${isSelected ? 'z-50' : 'z-10'} ${className}`} 
+      className={`absolute transition-colors duration-200 ${locked ? '' : 'cursor-grab active:cursor-grabbing'} ${isSelected && !locked ? 'z-50' : 'z-10'} ${className}`} 
       style={{ 
         transform: `translate(${position.x}px, ${position.y}px)`,
-        // We handle position via absolute + transform
         left: 0,
         top: 0,
-        touchAction: 'none' // Important to prevent scrolling while dragging
+        touchAction: 'none'
       }}
-      onClick={(e) => { e.stopPropagation(); setIsSelected(true); }}
+      onClick={(e) => { if(!locked) { e.stopPropagation(); setIsSelected(true); } }}
       onMouseDown={(e) => { 
         if((e.target as HTMLElement).closest('.resize-handle')) return;
         handleDragStart(e.clientX, e.clientY); 
       }}
       onTouchStart={(e) => { 
         if((e.target as HTMLElement).closest('.resize-handle')) return;
-        handleDragStart(e.touches[0].clientX, e.touches[0].clientY); 
+        if (e.touches && e.touches.length > 0) {
+           handleDragStart(e.touches[0].clientX, e.touches[0].clientY); 
+        }
       }}
     >
       <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
         {children}
       </div>
       
-      {isSelected && (
+      {isSelected && !locked && (
         <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-yellow-400/50 rounded-xl" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
           <div 
             className="resize-handle absolute -bottom-3 -right-3 w-8 h-8 bg-yellow-400 rounded-full shadow-lg flex items-center justify-center cursor-nwse-resize pointer-events-auto hover:scale-110 active:bg-yellow-300 z-50" 
             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleResizeStart(e.clientY); }}
-            onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); handleResizeStart(e.touches[0].clientY); }}
+            onTouchStart={(e) => { 
+              e.stopPropagation(); 
+              e.preventDefault(); 
+              if (e.touches && e.touches.length > 0) {
+                handleResizeStart(e.touches[0].clientY); 
+              }
+            }}
           >
             <MoveDiagonal size={16} className="text-black" />
           </div>
