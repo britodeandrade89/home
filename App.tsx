@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3
+  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -11,7 +11,6 @@ import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
 import WeatherWidget from './components/WeatherWidget';
 import ChefModal from './components/ChefModal';
-import RemindersWidget from './components/RemindersWidget';
 
 const App = () => {
   // --- STATE ---
@@ -22,6 +21,7 @@ const App = () => {
   const [beachReport, setBeachReport] = useState<any>(null);
   
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [currentReminderIndex, setCurrentReminderIndex] = useState(0);
   
   // Voice & System
   const [isCommandMode, setIsCommandMode] = useState(false);
@@ -35,11 +35,10 @@ const App = () => {
   // Layout Lock
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
 
-  // Widget Positions (Single Screen)
+  // Widget Positions (Single Screen) - REMINDERS REMOVED from standalone
   const [widgets, setWidgets] = useState({
     clock: { scale: 1, x: 40, y: 40 },
     weather: { scale: 1, x: 0, y: 40 },
-    reminders: { scale: 1, x: 0, y: 200 },
     date: { scale: 2, x: 0, y: 0 }, 
     prev: { scale: 1, x: 40, y: 0 },
     next: { scale: 1, x: 0, y: 0 },
@@ -137,20 +136,6 @@ const App = () => {
       }
     } else {
       saveLocalReminder(text, type);
-    }
-  };
-
-  const deleteReminder = async (id: string) => {
-    const newReminders = reminders.filter(r => r.id !== id);
-    setReminders(newReminders);
-    localStorage.setItem('local_reminders', JSON.stringify(newReminders));
-
-    if (db && isFirebaseAvailable) {
-      try {
-        if (isNaN(Number(id))) {
-            await deleteDoc(doc(db, "smart_home_reminders", id));
-        }
-      } catch (e) { console.error(e); }
     }
   };
 
@@ -260,22 +245,29 @@ const App = () => {
         ...prev,
         clock: { ...prev.clock, x: 40, y: 40 },
         weather: { ...prev.weather, x: w - 380, y: 40 },
-        reminders: { ...prev.reminders, x: w - 380, y: 560 }, // Push down below taller weather widget
         prev: { ...prev.prev, x: 40, y: h - 180 },
         next: { ...prev.next, x: w - 250, y: h - 180 },
-        date: { ...prev.date, x: (w / 2) - 150, y: (h / 2) - 150 }
+        date: { ...prev.date, x: (w / 2) - 150, y: (h / 2) - 200 } // Centered
     }));
   }, []);
 
   // 15 MINUTE FORCED RELOAD LOGIC
   useEffect(() => {
-    // Reload page every 15 minutes (15 * 60 * 1000 ms)
     const forcedRefreshInterval = setInterval(() => {
         window.location.reload(); 
     }, 900000); 
 
     return () => clearInterval(forcedRefreshInterval);
   }, []);
+
+  // Reminder Rotation
+  useEffect(() => {
+    if (reminders.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentReminderIndex(prev => (prev + 1) % reminders.length);
+    }, 5000); // Rotate every 5 seconds
+    return () => clearInterval(interval);
+  }, [reminders]);
 
   useEffect(() => {
     window.addEventListener('resize', handleResize);
@@ -328,7 +320,6 @@ const App = () => {
       const data = await fetchWeatherData(coords);
       if (data) {
           setWeather(data);
-          // Generate Beach Report
           const report = await generateBeachReport(data, locationName);
           if (report) setBeachReport(report);
       }
@@ -360,72 +351,77 @@ const App = () => {
 
   // --- BACKGROUND ---
   const getBackgroundStyle = () => {
-     const code = weather.weathercode;
-     const isDay = weather.is_day === 1;
-     const temp = Number(weather.temperature);
-     const rainProb = weather.precipitation_probability;
-     
-     let imageId = '1622396481328-9b1b78cdd9fd'; 
-     let overlayColor = 'rgba(0,0,0,0.3)'; 
+     try {
+       const code = weather?.weathercode || 0;
+       const isDay = weather?.is_day === 1;
+       const temp = Number(weather?.temperature) || 25;
+       const rainProb = weather?.precipitation_probability || 0;
+       
+       let imageId = '1622396481328-9b1b78cdd9fd'; 
+       let overlayColor = 'rgba(0,0,0,0.3)'; 
 
-     if (code >= 95) {
-        imageId = '1605727216801-e27ce1d0cc28'; 
-        overlayColor = 'rgba(20, 0, 30, 0.4)'; 
-     }
-     else if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
-        imageId = '1478265866628-9781c7d87995'; 
-        overlayColor = 'rgba(200, 220, 255, 0.2)'; 
-     }
-     else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-        if (rainProb > 80 || code >= 63) {
-            imageId = '1515694346937-94d85e41e6f0'; 
-            overlayColor = 'rgba(0, 10, 30, 0.5)'; 
-        } else {
-            imageId = '1496034663008-e0d0a0858d46'; 
-            overlayColor = 'rgba(50, 60, 70, 0.3)'; 
-        }
-     }
-     else if (code === 45 || code === 48) {
-        imageId = '1487621167305-5d248087c724'; 
-        overlayColor = 'rgba(150, 150, 150, 0.2)'; 
-     }
-     else if (code === 2 || code === 3) {
-        if (isDay) {
-            imageId = rainProb > 40 
-                ? '1534088568595-a066f410bcda' 
-                : '1595865728041-a368c48bab5f'; 
-            overlayColor = 'rgba(0,0,0,0.2)';
-        } else {
-            imageId = '1536746803623-cef8708094dd'; 
-            overlayColor = 'rgba(10, 10, 20, 0.5)';
-        }
-     }
-     else {
-        if (isDay) {
-            if (temp > 28) {
-                imageId = '1504370805625-d32c54b16100'; 
-                overlayColor = 'rgba(255, 100, 0, 0.1)'; 
-            } else if (temp < 15) {
-                imageId = '1477601263568-180e2c6d046e'; 
-                overlayColor = 'rgba(0, 100, 255, 0.1)'; 
-            } else {
-                imageId = '1622396481328-9b1b78cdd9fd'; 
-                overlayColor = 'rgba(0,0,0,0.1)';
-            }
-        } else {
-            imageId = '1532978873691-590b122e7876'; 
-            overlayColor = 'rgba(0, 0, 20, 0.4)'; 
-        }
-     }
+       if (code >= 95) {
+          imageId = '1605727216801-e27ce1d0cc28'; 
+          overlayColor = 'rgba(20, 0, 30, 0.4)'; 
+       }
+       else if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+          imageId = '1478265866628-9781c7d87995'; 
+          overlayColor = 'rgba(200, 220, 255, 0.2)'; 
+       }
+       else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+          if (rainProb > 80 || code >= 63) {
+              imageId = '1515694346937-94d85e41e6f0'; 
+              overlayColor = 'rgba(0, 10, 30, 0.5)'; 
+          } else {
+              imageId = '1496034663008-e0d0a0858d46'; 
+              overlayColor = 'rgba(50, 60, 70, 0.3)'; 
+          }
+       }
+       else if (code === 45 || code === 48) {
+          imageId = '1487621167305-5d248087c724'; 
+          overlayColor = 'rgba(150, 150, 150, 0.2)'; 
+       }
+       else if (code === 2 || code === 3) {
+          if (isDay) {
+              imageId = rainProb > 40 
+                  ? '1534088568595-a066f410bcda' 
+                  : '1595865728041-a368c48bab5f'; 
+              overlayColor = 'rgba(0,0,0,0.2)';
+          } else {
+              imageId = '1536746803623-cef8708094dd'; 
+              overlayColor = 'rgba(10, 10, 20, 0.5)';
+          }
+       }
+       else {
+          if (isDay) {
+              if (temp > 28) {
+                  imageId = '1504370805625-d32c54b16100'; 
+                  overlayColor = 'rgba(255, 100, 0, 0.1)'; 
+              } else if (temp < 15) {
+                  imageId = '1477601263568-180e2c6d046e'; 
+                  overlayColor = 'rgba(0, 100, 255, 0.1)'; 
+              } else {
+                  imageId = '1622396481328-9b1b78cdd9fd'; 
+                  overlayColor = 'rgba(0,0,0,0.1)';
+              }
+          } else {
+              imageId = '1532978873691-590b122e7876'; 
+              overlayColor = 'rgba(0, 0, 20, 0.4)'; 
+          }
+       }
 
-     const finalUrl = `https://images.unsplash.com/photo-${imageId}?q=80&w=1920&auto=format&fit=crop`;
+       const finalUrl = `https://images.unsplash.com/photo-${imageId}?q=80&w=1920&auto=format&fit=crop`;
 
-     return { 
-       backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url("${finalUrl}")`, 
-       backgroundSize: 'cover', 
-       backgroundPosition: 'center', 
-       transition: 'background-image 1.5s ease-in-out' 
-     };
+       return { 
+         backgroundColor: '#1a1a1a', // Fallback solid color
+         backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url("${finalUrl}")`, 
+         backgroundSize: 'cover', 
+         backgroundPosition: 'center', 
+         transition: 'background-image 1.5s ease-in-out' 
+       };
+     } catch (e) {
+       return { backgroundColor: '#222' }; // Safe fallback if anything explodes
+     }
   };
 
   if (!hasStarted) {
@@ -503,32 +499,42 @@ const App = () => {
         </ResizableWidget>
 
         <ResizableWidget 
-            scale={widgets.reminders.scale}
-            locked={isLayoutLocked}
-            onScaleChange={(s) => updateWidget('reminders', { scale: s })}
-            position={{ x: widgets.reminders.x, y: widgets.reminders.y }}
-            onPositionChange={(x, y) => updateWidget('reminders', { x, y })}
-        >
-           <RemindersWidget 
-              reminders={reminders} 
-              onAdd={(txt) => addReminderToDB(txt)}
-              onDelete={deleteReminder}
-           />
-        </ResizableWidget>
-
-        <ResizableWidget 
             scale={widgets.date.scale} 
             locked={isLayoutLocked}
             onScaleChange={(s) => updateWidget('date', { scale: s })}
             position={{ x: widgets.date.x, y: widgets.date.y }}
             onPositionChange={(x, y) => updateWidget('date', { x, y })}
         >
-            <div className="text-center drop-shadow-2xl">
-               <span className="block text-2xl tracking-[0.5em] text-yellow-300 font-bold mb-2">HOJE</span>
-               <span className="block text-[10rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-               <span className="block text-4xl font-light capitalize mt-4 opacity-80 pointer-events-none">
-                 {today.weekday.split('-')[0]}
-               </span>
+            <div className="flex flex-col items-center">
+              <div className="text-center drop-shadow-2xl">
+                <span className="block text-2xl tracking-[0.5em] text-yellow-300 font-bold mb-2">HOJE</span>
+                <span className="block text-[10rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                <span className="block text-4xl font-light capitalize mt-4 opacity-80 pointer-events-none">
+                  {today.weekday.split('-')[0]}
+                </span>
+              </div>
+              
+              {/* Reminders Footer Integrated Here */}
+              <div className="mt-8 w-[300px] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-16 flex items-center">
+                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400/50"></div>
+                 <div className="flex items-center gap-3 px-4 w-full">
+                    <Bell size={16} className="text-yellow-400 shrink-0" />
+                    <div className="flex-1 overflow-hidden">
+                       {reminders.length > 0 ? (
+                         <div className="animate-fade-in key={currentReminderIndex}">
+                            <p className="text-xs font-bold uppercase text-white/50 mb-0.5">
+                               {reminders[currentReminderIndex].time} • {reminders[currentReminderIndex].type === 'alert' ? 'Urgente' : 'Lembrete'}
+                            </p>
+                            <p className="text-sm font-medium truncate leading-tight">
+                               {reminders[currentReminderIndex].text}
+                            </p>
+                         </div>
+                       ) : (
+                         <p className="text-xs text-white/40 italic">Sem lembretes para agora.</p>
+                       )}
+                    </div>
+                 </div>
+              </div>
             </div>
         </ResizableWidget>
 

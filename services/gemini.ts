@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Restore the original key provided by the user as fallback.
-const apiKey = process.env.API_KEY || "gen-lang-client-0108694645";
+// CRITICAL FIX: Removed process.env to prevent "ReferenceError" in browser.
+// Using the provided key directly.
+const apiKey = "gen-lang-client-0108694645";
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -32,20 +33,23 @@ export const fetchNews = async (category: string): Promise<string[]> => {
       contents: `Liste as 3 manchetes mais recentes, urgentes e importantes sobre ${category} no Brasil.
       Use a ferramenta googleSearch para buscar no 'Google News Brazil' e 'G1' agora mesmo.
       Ignore notícias antigas. Foque no que está acontecendo HOJE.
-      Retorne apenas um array JSON de strings com os títulos.`,
+      Retorne apenas um array JSON de strings com os títulos. Mantenha os títulos curtos e diretos (max 10 palavras).`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
           items: { type: Type.STRING }
-        }
+        },
+        maxOutputTokens: 8192,
       }
     });
 
     const jsonText = response.text;
     if (jsonText) {
-      const headlines = JSON.parse(jsonText);
+      // Sanitize JSON (remove markdown blocks if present)
+      const cleanJson = jsonText.replace(/```json|```/g, '').trim();
+      const headlines = JSON.parse(cleanJson);
       if (Array.isArray(headlines) && headlines.length > 0) {
         return headlines.slice(0, 3);
       }
@@ -59,19 +63,21 @@ export const fetchNews = async (category: string): Promise<string[]> => {
     const fallbackResponse = await ai.models.generateContent({
       model: model,
       contents: `Gere 3 manchetes prováveis e realistas sobre ${category} no Brasil baseadas nos tópicos mais quentes da semana.
-      Seja factual. Retorne um array JSON de strings.`,
+      Seja factual e breve. Retorne um array JSON de strings.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
           items: { type: Type.STRING }
-        }
+        },
+        maxOutputTokens: 1000,
       }
     });
 
     const fallbackJson = fallbackResponse.text;
     if (fallbackJson) {
-      const headlines = JSON.parse(fallbackJson);
+      const cleanJson = fallbackJson.replace(/```json|```/g, '').trim();
+      const headlines = JSON.parse(cleanJson);
       if (Array.isArray(headlines) && headlines.length > 0) {
         return headlines.map(h => `${h} (Destaque)`); 
       }
@@ -97,6 +103,7 @@ export const generateNewsReport = async (headline: string): Promise<string> => {
       Seja direto e informativo.`,
       config: {
         tools: [{ googleSearch: {} }],
+        maxOutputTokens: 8192,
       }
     });
     return response.text || "Não consegui carregar os detalhes desta notícia.";
@@ -112,12 +119,14 @@ export const generateBeachReport = async (weatherData: any, locationName: string
       Você é um especialista local em Maricá, RJ. Analise os dados do tempo: 
       Temp: ${weatherData.temperature}°C, Vento: ${weatherData.wind_speed}km/h, Chuva: ${weatherData.precipitation_probability}%.
       
-      Gere um relatório JSON curto sobre as condições das praias (Ponta Negra, Barra de Maricá, Itaipuaçu).
-      1. Avalie: "Própria para banho" (Sim/Não/Cuidado).
-      2. Estime a temperatura da água (baseado no ar).
-      3. Chance de "Lagomar" (formação de piscinas naturais em Itaipuaçu/Ponta Negra - geralmente ocorre pós-ressaca ou maré específica, invente uma probabilidade baseada no vento).
-      4. Indique a MELHOR praia para ir agora saindo de "${locationName}".
-      5. Gere um link do Google Maps para a praia escolhida.
+      Gere um relatório JSON SOBRE as condições das praias (Ponta Negra, Barra de Maricá, Itaipuaçu).
+      SEJA EXTREMAMENTE SUCINTO. Frases curtas.
+      
+      1. Avalie: "Própria p/ banho" (Sim/Não/Cuidado).
+      2. Estime temperatura da água.
+      3. Chance de "Lagomar".
+      4. Indique a MELHOR praia.
+      5. Gere link Google Maps.
       
       Retorne JSON:
       {
@@ -126,9 +135,9 @@ export const generateBeachReport = async (weatherData: any, locationName: string
         "waves": "Calmo" | "Agitado" | "Ressaca",
         "lagomarProb": "Baixa" | "Média" | "Alta",
         "bestBeach": "Nome da Praia",
-        "reason": "Motivo curto (ex: menos vento, água clara)",
+        "reason": "Motivo curto (max 10 palavras)",
         "routeLink": "https://www.google.com/maps/dir/?api=1&destination=...",
-        "windComment": "Comentário sobre o vento na areia"
+        "windComment": "Comentário curto (max 5 palavras)"
       }
     `;
 
@@ -149,11 +158,14 @@ export const generateBeachReport = async (weatherData: any, locationName: string
              routeLink: { type: Type.STRING },
              windComment: { type: Type.STRING }
           }
-        }
+        },
+        maxOutputTokens: 8192, // Increased to max to prevent truncation
       }
     });
     
-    return JSON.parse(response.text || "{}");
+    const text = response.text || "{}";
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleanJson);
   } catch (e) {
     console.error("Beach report failed", e);
     return null;
@@ -195,7 +207,8 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
             response: { type: Type.STRING, description: "Resposta falada para o usuário" }
           },
           required: ["action", "response"]
-        }
+        },
+        maxOutputTokens: 2000,
       }
     });
 
