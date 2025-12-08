@@ -1,117 +1,116 @@
-import React from 'react';
-import { CloudRain, Sun, Cloud, Moon, MapPin, Thermometer, Droplets, CloudLightning, Wind, Waves, Map, Anchor } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Wind, Waves, MapPin, Anchor } from 'lucide-react';
 import { WeatherData } from '../types';
 
 interface WeatherWidgetProps {
   weather: WeatherData;
   locationName: string;
-  beachReport: any;
+  beachReport: any; // Mantemos para compatibilidade, mas priorizamos a lógica local rápida
 }
 
-const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport }) => {
-  const getWeatherIcon = (code: number, isDay: number = 1) => {
-    // Storm (Thunder)
-    if (code >= 95) return <div className="animate-storm"><CloudLightning className="text-purple-300 w-16 h-16 drop-shadow-lg" /></div>;
-    // Rain
-    if (code >= 51) return <div className="animate-rain"><CloudRain className="text-blue-300 w-16 h-16 drop-shadow-lg" /></div>;
-    // Cloud (Cloudy, Fog, Overcast)
-    if (code >= 2) return <div className="animate-float"><Cloud className="text-gray-300 w-16 h-16 drop-shadow-lg" /></div>;
-    // Sun or Moon
-    return isDay === 1 
-      ? <div className="animate-sun"><Sun className="text-yellow-300 w-16 h-16 drop-shadow-lg" /></div> 
-      : <div className="animate-float"><Moon className="text-yellow-100 w-16 h-16 drop-shadow-lg" /></div>;
-  };
+const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) => {
+  const [advice, setAdvice] = useState("Analisando condições...");
+  const [windDesc, setWindDesc] = useState("...");
+  const [lastUpdate, setLastUpdate] = useState("");
+  const [icon, setIcon] = useState("☀️");
 
-  const getWeekDay = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).toUpperCase();
-  };
+  // Lógica "Hardcoded" inteligente baseada no exemplo do usuário
+  useEffect(() => {
+    if (!weather) return;
+
+    // 1. Ícone e Conselho Básico
+    const code = weather.weathercode;
+    const temp = Number(weather.temperature);
+    const humidity = weather.relative_humidity_2m || 0;
+    
+    let localIcon = "☀️";
+    let localAdvice = "Dia lindo! Aproveite a praia.";
+
+    if (code > 2) localIcon = "☁️"; 
+    if (code >= 51) { localIcon = "🌧️"; localAdvice = "Pode chover. Leve guarda-chuva se sair."; }
+    if (code >= 95) { localIcon = "⛈️"; localAdvice = "Alerta de tempestade. Evite o mar."; }
+    
+    // Ajuste noturno
+    if (weather.is_day === 0 && code < 50) localIcon = "🌙";
+
+    // Lógica de Recomendação (Simulando a IA)
+    if (temp > 25 && code < 50) {
+        if (humidity < 40) {
+            localAdvice = "Sol forte e ar seco. Hidrate-se muito!";
+        } else {
+            localAdvice = "Água morna (est), vento agradável. Ideal para banho na Barra de Maricá.";
+        }
+    }
+
+    setAdvice(localAdvice);
+    setIcon(localIcon);
+
+    // 2. Descrição do Vento
+    const wind = weather.wind_speed;
+    let wText = "Suave";
+    if (wind > 15) wText = "Brisa do Mar";
+    if (wind > 25) wText = "Vento Forte";
+    setWindDesc(wText);
+
+    // 3. Hora
+    setLastUpdate(new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}));
+
+  }, [weather]);
 
   return (
-    <div className="flex flex-col w-[350px] h-[500px] rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden">
-       
-       {/* 1. STICKY HEADER (Current) */}
-       <div className="flex items-center justify-between p-6 bg-black/20 shrink-0">
-          <div className="flex flex-col text-white">
-             <span className="text-6xl font-bold tracking-tighter leading-none drop-shadow-xl">
-               {weather.temperature !== '--' ? `${Math.round(Number(weather.temperature))}°` : '--'}
-             </span>
-             <span className="text-xs uppercase tracking-widest font-bold flex items-center gap-1 mb-1 opacity-90">
-                <MapPin size={12} className="text-green-400" /> {locationName}
-             </span>
-             <div className="flex gap-2 text-xs opacity-80">
-                <span className="flex items-center gap-1"><Thermometer size={10}/> {weather.apparent_temperature}°</span>
-                <span className="flex items-center gap-1"><Droplets size={10}/> {weather.precipitation_probability}%</span>
-             </div>
+    <div className="flex flex-col w-full h-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+        
+       {/* HEADER */}
+       <div className="flex justify-between items-start mb-4">
+          <div>
+              <div className="text-7xl font-bold leading-none tracking-tighter drop-shadow-xl">
+                 {Math.round(Number(weather.temperature))}°
+              </div>
+              <div className="flex items-center gap-1 text-sm font-bold uppercase opacity-90 mt-2 text-yellow-400">
+                 <MapPin size={12} /> {locationName}
+              </div>
+              <div className="text-xs opacity-70 mt-1">
+                 Sensação {Math.round(Number(weather.apparent_temperature))}° • Umidade {weather.relative_humidity_2m}%
+              </div>
           </div>
-          <div className="animate-fade-in">{getWeatherIcon(weather.weathercode, weather.is_day)}</div>
+          <div className="text-7xl filter drop-shadow-lg animate-pulse">
+             {icon}
+          </div>
        </div>
 
-       {/* 2. SCROLLABLE CONTENT (Vertical) */}
-       <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
-          
-          {/* MARINE & BEACH CONDITIONS */}
-          <div className="p-4 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-300 border-b border-white/10 pb-1 mb-2">Condições do Mar (Maricá)</h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2 text-white/70 text-[10px] uppercase mb-1">
-                     <Wind size={12} /> Vento
-                  </div>
-                  <span className="text-xl font-bold">{weather.wind_speed} <span className="text-xs font-normal">km/h</span></span>
-                  <p className="text-[10px] opacity-60 leading-tight mt-1">{beachReport?.windComment || "Calculando..."}</p>
-               </div>
-               
-               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2 text-white/70 text-[10px] uppercase mb-1">
-                     <Waves size={12} /> Água
-                  </div>
-                  <span className="text-xl font-bold">{beachReport?.waterTemp || "--"}</span>
-                  <p className="text-[10px] opacity-60 leading-tight mt-1">
-                     Banho: <span className={beachReport?.swimCondition === 'Boa' ? 'text-green-400' : 'text-red-400'}>{beachReport?.swimCondition || "--"}</span>
-                  </p>
-               </div>
-            </div>
+       <div className="h-px w-full bg-white/20 my-2"></div>
 
-            <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 p-3 rounded-xl border border-white/10">
-               <div className="flex items-center justify-between mb-2">
-                   <div className="flex items-center gap-2 text-xs font-bold text-yellow-300">
-                      <Anchor size={14} /> Recomendação da IA
-                   </div>
-                   {beachReport?.lagomarProb === 'Alta' && <span className="text-[9px] bg-green-500 text-black px-1.5 rounded font-bold">LAGOMAR</span>}
-               </div>
-               <p className="text-sm font-medium mb-1">{beachReport?.bestBeach || "Analisando praias..."}</p>
-               <p className="text-[11px] opacity-70 mb-2 leading-snug">{beachReport?.reason}</p>
-               {beachReport?.routeLink && (
-                  <a href={beachReport.routeLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[10px] bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-colors w-fit">
-                     <Map size={12} /> Ver Rota no Maps
-                  </a>
-               )}
-            </div>
+       <div className="text-[10px] font-bold text-blue-300 uppercase mb-3 tracking-widest">
+          Condições Atuais
+       </div>
+
+       {/* GRID DE DETALHES (Igual ao código fornecido) */}
+       <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+             <span className="text-[10px] uppercase opacity-60 block mb-1 flex items-center gap-1"><Wind size={10}/> Vento</span>
+             <div className="text-2xl font-bold">{weather.wind_speed} <small className="text-xs font-normal">km/h</small></div>
+             <div className="text-[10px] opacity-80 mt-1 text-yellow-200">{windDesc}</div>
           </div>
-
-          {/* 3. HORIZONTAL FORECAST (Scrollable) */}
-          <div className="p-4 pt-0">
-             <h3 className="text-xs font-bold uppercase tracking-widest text-yellow-300 border-b border-white/10 pb-1 mb-2">Próximos Dias</h3>
-             <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-                {weather.daily?.time.slice(0, 6).map((time, i) => (
-                   <div key={time} className="flex flex-col items-center bg-white/5 p-2 rounded-xl min-w-[60px] border border-white/5">
-                      <span className="text-[10px] opacity-60 uppercase mb-1">{i === 0 ? 'Hoje' : getWeekDay(time)}</span>
-                      <div className="mb-1 scale-75">{getWeatherIcon(weather.daily?.weathercode?.[i] ?? 0)}</div>
-                      <span className="text-sm font-bold">{Math.round(weather.daily?.temperature_2m_max?.[i] ?? 0)}°</span>
-                      <span className="text-[10px] opacity-50">{Math.round(weather.daily?.temperature_2m_min?.[i] ?? 0)}°</span>
-                      {(weather.daily?.precipitation_probability_max?.[i] ?? 0) > 30 && (
-                         <div className="flex items-center gap-0.5 text-[9px] text-blue-300 mt-1">
-                            <Droplets size={8} /> {weather.daily?.precipitation_probability_max?.[i]}%
-                         </div>
-                      )}
-                   </div>
-                ))}
-                {!weather.daily && <div className="text-xs opacity-50">Carregando previsão...</div>}
-             </div>
+          <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+             <span className="text-[10px] uppercase opacity-60 block mb-1 flex items-center gap-1"><Waves size={10}/> Água (Est.)</span>
+             <div className="text-2xl font-bold">~23°C</div>
+             <div className="text-[10px] opacity-80 mt-1 text-blue-200">Refrescante</div>
           </div>
+       </div>
 
+       {/* RECOMENDAÇÃO (Estilo Box) */}
+       <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border-l-4 border-yellow-500 rounded-r-xl p-4 mb-auto">
+          <div className="text-yellow-400 font-bold text-xs uppercase mb-1 flex items-center gap-2">
+             <Anchor size={12} /> Análise Automática
+          </div>
+          <p className="text-sm font-medium leading-snug shadow-black drop-shadow-md">
+             {advice}
+          </p>
+       </div>
+
+       {/* FOOTER */}
+       <div className="text-center text-[10px] opacity-40 mt-4">
+          Atualizado às: {lastUpdate}
        </div>
     </div>
   );
