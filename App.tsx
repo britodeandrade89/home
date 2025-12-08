@@ -534,7 +534,7 @@ const App = () => {
                     <Bell size={16} className="text-yellow-400 shrink-0" />
                     <div className="flex-1 overflow-hidden">
                        {reminders.length > 0 ? (
-                         <div className="animate-fade-in key={currentReminderIndex}">
+                         <div className="animate-fade-in" key={currentReminderIndex}>
                             <p className="text-xs font-bold uppercase text-white/50 mb-0.5">
                                {reminders[currentReminderIndex].time} • {reminders[currentReminderIndex].type === 'alert' ? 'Urgente' : 'Lembrete'}
                             </p>

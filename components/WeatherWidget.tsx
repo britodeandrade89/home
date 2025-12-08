@@ -98,12 +98,12 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
                 {weather.daily?.time.slice(0, 6).map((time, i) => (
                    <div key={time} className="flex flex-col items-center bg-white/5 p-2 rounded-xl min-w-[60px] border border-white/5">
                       <span className="text-[10px] opacity-60 uppercase mb-1">{i === 0 ? 'Hoje' : getWeekDay(time)}</span>
-                      <div className="mb-1 scale-75">{getWeatherIcon(weather.daily!.weathercode[i])}</div>
-                      <span className="text-sm font-bold">{Math.round(weather.daily!.temperature_2m_max[i])}°</span>
-                      <span className="text-[10px] opacity-50">{Math.round(weather.daily!.temperature_2m_min[i])}°</span>
-                      {weather.daily!.precipitation_probability_max[i] > 30 && (
+                      <div className="mb-1 scale-75">{getWeatherIcon(weather.daily?.weathercode?.[i] ?? 0)}</div>
+                      <span className="text-sm font-bold">{Math.round(weather.daily?.temperature_2m_max?.[i] ?? 0)}°</span>
+                      <span className="text-[10px] opacity-50">{Math.round(weather.daily?.temperature_2m_min?.[i] ?? 0)}°</span>
+                      {(weather.daily?.precipitation_probability_max?.[i] ?? 0) > 30 && (
                          <div className="flex items-center gap-0.5 text-[9px] text-blue-300 mt-1">
-                            <Droplets size={8} /> {weather.daily!.precipitation_probability_max[i]}%
+                            <Droplets size={8} /> {weather.daily?.precipitation_probability_max?.[i]}%
                          </div>
                       )}
                    </div>
