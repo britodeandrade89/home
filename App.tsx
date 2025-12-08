@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
-import { fetchWeatherData } from './services/weather';
+import { fetchWeatherData, fetchCityName } from './services/weather';
 import { processVoiceCommandAI, fetchNews, generateNewsReport, generateBeachReport } from './services/gemini';
 import { Reminder, NewsData, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
@@ -35,7 +35,7 @@ const App = () => {
   // Layout Lock
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
 
-  // Widget Positions (Single Screen) - REMINDERS REMOVED from standalone
+  // Widget Positions (Single Screen)
   const [widgets, setWidgets] = useState({
     clock: { scale: 1, x: 40, y: 40 },
     weather: { scale: 1, x: 0, y: 40 },
@@ -251,9 +251,10 @@ const App = () => {
     }));
   }, []);
 
-  // 15 MINUTE FORCED RELOAD LOGIC
+  // 15 MINUTE FORCED RELOAD LOGIC (Updated to 15 mins = 900000 ms)
   useEffect(() => {
     const forcedRefreshInterval = setInterval(() => {
+        console.log("Auto-refreshing page for fresh data...");
         window.location.reload(); 
     }, 900000); 
 
@@ -279,13 +280,24 @@ const App = () => {
       setCurrentTime(now);
     }, 1000);
 
+    // Initial Location Fetch
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-          setLocationName("Local Atual"); 
+          // Fetch exact city name
+          const cityName = await fetchCityName(pos.coords.latitude, pos.coords.longitude);
+          setLocationName(cityName);
         },
-        (err) => console.warn("GPS erro", err)
+        (err) => {
+            console.warn("GPS erro, usando Maricá fallback", err);
+            // Fallback Maricá coordinates
+            const fallbackLat = -22.9194;
+            const fallbackLon = -42.8186;
+            setCoords({ lat: fallbackLat, lon: fallbackLon });
+            setLocationName("Maricá - RJ");
+        },
+        { timeout: 5000 }
       );
     }
 
@@ -313,7 +325,7 @@ const App = () => {
     };
   }, [handleResize]);
 
-  // Weather & Beach Report Sync
+  // Weather & Beach Report Sync (Runs every 15 min separately from page reload)
   useEffect(() => {
     if (!coords) return;
     const loadWeather = async () => {
@@ -325,7 +337,8 @@ const App = () => {
       }
     };
     loadWeather();
-    const interval = setInterval(loadWeather, 300000);
+    // Fetch data every 15 minutes as well (900000ms) to sync with page reload cycle
+    const interval = setInterval(loadWeather, 900000);
     return () => clearInterval(interval);
   }, [coords, locationName]);
 

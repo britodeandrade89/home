@@ -4,6 +4,7 @@ export interface DailyForecast {
   temperature_2m_max: number[];
   temperature_2m_min: number[];
   precipitation_probability_max: number[];
+  uv_index_max?: number[];
 }
 
 export interface WeatherData {
@@ -14,6 +15,11 @@ export interface WeatherData {
   precipitation_probability: number;
   wind_speed: number;
   daily?: DailyForecast;
+  relative_humidity_2m?: number;
+  surface_pressure?: number;
+  visibility?: number;
+  uv_index?: number;
+  uv_index_max?: number[];
 }
 
 export interface Reminder {
