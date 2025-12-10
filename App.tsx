@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell
+  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, MessageSquare
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -11,6 +11,7 @@ import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
 import WeatherWidget from './components/WeatherWidget';
 import ChefModal from './components/ChefModal';
+import ChatModal from './components/ChatModal';
 
 // COORDENADAS FIXAS DE MARICÁ (Pedido do usuário)
 const MARICA_COORDS = { lat: -22.9194, lon: -42.8186 };
@@ -38,12 +39,14 @@ const App = () => {
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
     clock: { width: 300, height: 150, x: 40, y: 40 },
     weather: { width: 350, height: 500, x: 0, y: 40 }, 
-    date: { width: 400, height: 300, x: 0, y: 0 }, 
+    // Increased size for date widget (approx double visual impact)
+    date: { width: 1200, height: 1000, x: 0, y: 0 }, 
     prev: { width: 250, height: 150, x: 40, y: 0 },
     next: { width: 250, height: 150, x: 0, y: 0 },
   });
@@ -196,6 +199,9 @@ const App = () => {
             } else if (result.action === 'add_reminder' && result.text) {
                await addReminderToDB(result.text, result.type || 'info');
                speak(`Adicionado: ${result.text}`);
+            } else if (result.action === 'chat') {
+               setIsChatOpen(true);
+               speak(result.response || "Abrindo chat.");
             } else if (result.response) speak(result.response);
           } else speak("Não entendi.");
         }
@@ -233,10 +239,8 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const forcedRefreshInterval = setInterval(() => {
-        window.location.reload(); 
-    }, 900000); // 15 min refresh
-    return () => clearInterval(forcedRefreshInterval);
+    // REMOVIDO: setInterval com window.location.reload()
+    // Isso evita o refresh da página que resetava o app.
   }, []);
 
   useEffect(() => {
@@ -260,7 +264,8 @@ const App = () => {
     };
     
     loadWeather();
-    const wInterval = setInterval(loadWeather, 900000);
+    // Este intervalo garante que os dados atualizem sem recarregar a página
+    const wInterval = setInterval(loadWeather, 900000); 
 
     const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
@@ -367,6 +372,8 @@ const App = () => {
          </div>
       )}
 
+      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
       <section className="absolute inset-0 z-10 w-full h-full">
         <ResizableWidget 
             width={widgets.clock.width} height={widgets.clock.height} onResize={(w, h) => updateWidget('clock', { width: w, height: h })}
@@ -395,21 +402,24 @@ const App = () => {
         >
             <div className="flex flex-col items-center w-full h-full justify-center">
               <div className="text-center drop-shadow-2xl">
-                <span className="block text-2xl tracking-[0.5em] text-yellow-300 font-bold mb-2">HOJE</span>
-                <span className="block text-[8rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                <span className="block text-4xl font-light capitalize mt-4 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                {/* Dobro do tamanho das fontes originais */}
+                <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
+                <span className="block text-[24rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                <span className="block text-9xl font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
               </div>
-              <div className="mt-8 w-[90%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-16 flex items-center shrink-0">
-                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400/50"></div>
-                 <div className="flex items-center gap-3 px-4 w-full">
-                    <Bell size={16} className="text-yellow-400 shrink-0" />
+              
+              {/* Reminder Box Aumentado Proporcionalmente */}
+              <div className="mt-20 w-[95%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
+                 <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
+                 <div className="flex items-center gap-6 px-8 w-full">
+                    <Bell size={42} className="text-yellow-400 shrink-0" />
                     <div className="flex-1 overflow-hidden">
                        {allReminders.length > 0 ? (
                          <div className="animate-fade-in" key={currentReminderIndex}>
-                            <p className="text-xs font-bold uppercase text-white/50 mb-0.5">{allReminders[currentReminderIndex]?.time} • {allReminders[currentReminderIndex]?.type === 'alert' ? 'Urgente' : 'Lembrete'}</p>
-                            <p className="text-sm font-medium truncate leading-tight">{allReminders[currentReminderIndex]?.text}</p>
+                            <p className="text-2xl font-bold uppercase text-white/50 mb-1">{allReminders[currentReminderIndex]?.time} • {allReminders[currentReminderIndex]?.type === 'alert' ? 'Urgente' : 'Lembrete'}</p>
+                            <p className="text-4xl font-medium truncate leading-tight">{allReminders[currentReminderIndex]?.text}</p>
                          </div>
-                       ) : (<p className="text-xs text-white/40 italic">Sem lembretes.</p>)}
+                       ) : (<p className="text-2xl text-white/40 italic">Sem lembretes.</p>)}
                     </div>
                  </div>
               </div>
@@ -431,7 +441,14 @@ const App = () => {
         </ResizableWidget>
       </section>
 
-      <div className="absolute bottom-6 right-1/2 translate-x-1/2 z-50">
+      <div className="absolute bottom-6 right-1/2 translate-x-1/2 z-50 flex gap-4">
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="p-4 rounded-full shadow-2xl transition-all duration-300 border bg-blue-600 border-blue-400 text-white hover:bg-blue-500 scale-100 active:scale-95"
+        >
+          <MessageSquare size={20} />
+        </button>
+
         <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 rounded-full shadow-2xl transition-all duration-300 border ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20 hover:text-white/50' : 'bg-yellow-500 text-black border-yellow-400 scale-110'}`}>
            {isLayoutLocked ? <Lock size={20}/> : <Edit3 size={20}/>}
         </button>

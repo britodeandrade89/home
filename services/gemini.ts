@@ -1,10 +1,43 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Chat } from "@google/genai";
 
 // CRITICAL FIX: Removed process.env to prevent "ReferenceError" in browser.
 // Using the provided key directly.
-const apiKey = "gen-lang-client-0108694645";
+const apiKey = "AIzaSyCJ9K6sovkNzeO_fuQbSPD9LnIUG0p8Da4";
 
 const ai = new GoogleGenAI({ apiKey });
+
+// --- CHAT FEATURE ---
+
+let chatSession: Chat | null = null;
+
+export const getChatResponse = async (userMessage: string): Promise<string> => {
+  try {
+    if (!chatSession) {
+      chatSession = ai.chats.create({
+        model: "gemini-2.5-flash",
+        config: {
+          systemInstruction: `Você é o "Smart Home Assistant", uma IA integrada a um painel doméstico inteligente.
+          
+          Seu tom deve ser:
+          1. Útil e direto.
+          2. Amigável, mas conciso (respostas curtas são melhores para leitura rápida).
+          3. Você pode ajudar com dúvidas gerais, receitas, curiosidades ou explicar o funcionamento do painel.
+          
+          O painel possui: Clima (Maricá), Relógio, Agenda/Lembretes e Notícias.
+          Se o usuário pedir para realizar uma ação física (ex: ligar luz), explique educadamente que você é apenas a interface do painel por enquanto.`,
+        },
+      });
+    }
+
+    const result = await chatSession.sendMessage({ message: userMessage });
+    return result.text || "Desculpe, não consegui processar sua mensagem.";
+  } catch (error) {
+    console.error("Erro no Chat IA:", error);
+    return "Erro de conexão. Tente novamente em instantes.";
+  }
+};
+
+// --- EXISTING FEATURES ---
 
 export const getChefSuggestion = async (userInput: string): Promise<string> => {
   try {
