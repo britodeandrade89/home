@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, MessageSquare
+  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, MessageSquare, Smartphone
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
-import { fetchWeatherData } from './services/weather'; // fetchCityName removido do uso direto para forçar Maricá
+import { fetchWeatherData } from './services/weather'; 
 import { processVoiceCommandAI, fetchNews, generateNewsReport } from './services/gemini';
 import { Reminder, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
@@ -19,7 +19,6 @@ const MARICA_COORDS = { lat: -22.9194, lon: -42.8186 };
 const App = () => {
   // --- STATE ---
   const [currentTime, setCurrentTime] = useState(new Date());
-  // Inicializando weather com valores seguros para não quebrar
   const [weather, setWeather] = useState<WeatherData>({ 
     temperature: '25', weathercode: 0, is_day: 1, apparent_temperature: '27', 
     precipitation_probability: 0, wind_speed: 0, relative_humidity_2m: 70 
@@ -40,12 +39,12 @@ const App = () => {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
     clock: { width: 300, height: 150, x: 40, y: 40 },
     weather: { width: 350, height: 500, x: 0, y: 40 }, 
-    // Increased size for date widget (approx double visual impact)
     date: { width: 1200, height: 1000, x: 0, y: 0 }, 
     prev: { width: 250, height: 150, x: 40, y: 0 },
     next: { width: 250, height: 150, x: 0, y: 0 },
@@ -100,6 +99,17 @@ const App = () => {
     setHasStarted(true);
     requestWakeLock();
     try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); } catch(e) {}
+  };
+
+  const handleInstallApp = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+        setInstallPrompt(null);
+        setShowInstallModal(false);
+    }
   };
 
   // --- DATA SYNC ---
@@ -188,13 +198,11 @@ const App = () => {
           const result = await processVoiceCommandAI(command);
           if (result) {
             if (result.action === 'read_news_init') {
-               // FEATURE: Directly read news if topic is provided
                if (result.text) {
                   speak(`Buscando notícias sobre ${result.text}...`);
                   const report = await generateNewsReport(result.text);
                   speak(report, 1.25);
                } else {
-                  // Fallback to asking
                   setNewsSearchMode(true);
                   speak(result.response || "Qual notícia?");
                }
@@ -241,11 +249,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    // REMOVIDO: setInterval com window.location.reload()
-    // Isso evita o refresh da página que resetava o app.
-  }, []);
-
-  useEffect(() => {
     if (reminders.length === 0) return;
     const interval = setInterval(() => setCurrentReminderIndex(prev => (prev + 1) % reminders.length), 5000);
     return () => clearInterval(interval);
@@ -258,18 +261,20 @@ const App = () => {
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    // Weather Sync - A cada 15 min ou carga inicial
     const loadWeather = async () => {
-      // Usa coordenadas FIXAS de Maricá
       const data = await fetchWeatherData(MARICA_COORDS);
       if (data) setWeather(data);
     };
     
     loadWeather();
-    // Este intervalo garante que os dados atualizem sem recarregar a página
     const wInterval = setInterval(loadWeather, 900000); 
 
-    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
+    // Install Prompt Listener
+    const handler = (e: any) => { 
+        e.preventDefault(); 
+        setInstallPrompt(e); 
+        setShowInstallModal(true);
+    };
     window.addEventListener('beforeinstallprompt', handler);
 
     if (db) {
@@ -348,6 +353,27 @@ const App = () => {
        };
   };
 
+  const InstallPromptModal = () => (
+     <div className="absolute top-8 right-8 z-[200] animate-fade-in flex flex-col items-end pointer-events-auto">
+        <div className="bg-yellow-500 text-black p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-sm border-2 border-yellow-300">
+           <div className="bg-black/10 p-2 rounded-xl">
+             <Smartphone size={24}/>
+           </div>
+           <div>
+              <h3 className="font-bold text-lg leading-none mb-1">Instalar Aplicativo</h3>
+              <p className="text-xs font-semibold opacity-70">Adicione à tela inicial para melhor experiência.</p>
+           </div>
+           <button 
+             onClick={handleInstallApp}
+             className="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold hover:scale-105 transition-transform"
+           >
+             Instalar
+           </button>
+           <button onClick={(e) => { e.stopPropagation(); setShowInstallModal(false); }} className="p-1 hover:bg-black/10 rounded-full"><Lock size={14}/></button>
+        </div>
+     </div>
+  );
+
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white cursor-pointer" onClick={handleStartDashboard}>
@@ -356,6 +382,17 @@ const App = () => {
         </div>
         <h1 className="text-4xl font-bold uppercase tracking-[0.3em] mb-4 text-center px-4">Smart Home</h1>
         <p className="text-xl opacity-70 mb-8 animate-bounce">Toque para Iniciar</p>
+        
+        {/* Mostra botão de instalar na tela de início se disponível */}
+        {showInstallModal && (
+            <button 
+                onClick={handleInstallApp}
+                className="mt-8 bg-white/10 border border-white/20 px-6 py-3 rounded-full flex items-center gap-3 hover:bg-white/20 transition-all text-yellow-400"
+            >
+                <Smartphone size={20} /> 
+                <span className="font-bold uppercase tracking-wider text-sm">Instalar App</span>
+            </button>
+        )}
       </div>
     );
   }
@@ -365,6 +402,9 @@ const App = () => {
   return (
     <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans select-none transition-all duration-1000" style={getBackgroundStyle()}>
       
+      {/* Install Modal In-App */}
+      {showInstallModal && <InstallPromptModal />}
+
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 bg-black/80 px-6 py-3 rounded-full border border-green-500 flex items-center gap-3 animate-fade-in shadow-2xl pointer-events-none">
             <div className={`w-3 h-3 bg-green-500 rounded-full ${isProcessingAI ? 'animate-bounce' : 'animate-ping'}`} />
