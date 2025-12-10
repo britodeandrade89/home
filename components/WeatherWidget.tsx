@@ -19,7 +19,7 @@ const getWeatherIcon = (code: number) => {
   return "⛈️";
 };
 
-const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) => {
+const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport }) => {
   const [windDesc, setWindDesc] = useState("...");
   const [lastUpdate, setLastUpdate] = useState("");
   const [icon, setIcon] = useState("☀️");
@@ -156,6 +156,45 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) 
                  <div className="text-[10px] text-white/50 mt-1 uppercase font-bold">Do Ar</div>
               </div>
            </div>
+
+           {/* RELATÓRIO DE PRAIA / MAR (NOVO) */}
+           {beachReport && (
+             <div className="bg-blue-900/30 rounded-2xl p-4 border border-blue-500/30 mb-6 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-3 text-blue-300 font-bold uppercase text-xs tracking-widest">
+                    <Waves size={14} /> Condições do Mar
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                   <div className="col-span-2 pb-2 border-b border-blue-500/20">
+                      <div className="text-[10px] opacity-60 uppercase mb-1">Melhor Praia Hoje</div>
+                      <div className="text-xl font-bold text-yellow-400 leading-none">{beachReport.bestBeach || "Analisando..."}</div>
+                      <div className="text-[10px] opacity-80 mt-1 leading-snug">{beachReport.reason}</div>
+                   </div>
+                   <div>
+                       <div className="text-[10px] opacity-60 uppercase">Bandeira</div>
+                       <div className={`font-bold text-sm ${beachReport.swimCondition === 'Perigosa' ? 'text-red-400' : 'text-green-400'}`}>
+                           {beachReport.swimCondition || "--"}
+                       </div>
+                   </div>
+                   <div>
+                       <div className="text-[10px] opacity-60 uppercase">Ondas</div>
+                       <div className="font-bold text-sm text-white">{beachReport.waves || "--"}</div>
+                   </div>
+                   <div>
+                       <div className="text-[10px] opacity-60 uppercase">Água</div>
+                       <div className="font-bold text-sm text-white">{beachReport.waterTemp || "--"}</div>
+                   </div>
+                   <div>
+                       <div className="text-[10px] opacity-60 uppercase">Lagomar</div>
+                       <div className="font-bold text-sm text-white">{beachReport.lagomarProb || "--"}</div>
+                   </div>
+                </div>
+                {beachReport.windComment && (
+                    <div className="mt-2 pt-2 border-t border-blue-500/20 text-[10px] text-blue-200 italic">
+                        "{beachReport.windComment}"
+                    </div>
+                )}
+             </div>
+           )}
 
            <div className="h-px w-full bg-white/10 my-4"></div>
 

@@ -5,7 +5,7 @@ import {
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather'; 
-import { processVoiceCommandAI, fetchNews, generateNewsReport } from './services/gemini';
+import { processVoiceCommandAI, fetchNews, generateNewsReport, generateBeachReport } from './services/gemini';
 import { Reminder, Coords, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
@@ -291,7 +291,12 @@ const App = () => {
 
     const loadWeather = async () => {
       const data = await fetchWeatherData(MARICA_COORDS);
-      if (data) setWeather(data);
+      if (data) {
+        setWeather(data);
+        // Atualiza o relatório da praia junto com o clima
+        const bReport = await generateBeachReport(data, 'Maricá');
+        setBeachReport(bReport);
+      }
     };
     
     loadWeather();
