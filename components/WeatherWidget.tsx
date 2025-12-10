@@ -58,7 +58,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) 
   }, [weather]);
 
   return (
-    <div className="flex flex-col w-full h-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+    <div className="animate-float flex flex-col w-full h-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden transition-all duration-300">
         
        {/* HEADER */}
        <div className="flex justify-between items-start mb-4">

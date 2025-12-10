@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoveDiagonal, GripHorizontal } from 'lucide-react';
+import { GripHorizontal } from 'lucide-react';
 
 interface ResizableWidgetProps {
   children: React.ReactNode;
@@ -13,6 +13,8 @@ interface ResizableWidgetProps {
   minWidth?: number;
   minHeight?: number;
 }
+
+type ResizeDirection = 'nw' | 'ne' | 'sw' | 'se' | null;
 
 const ResizableWidget: React.FC<ResizableWidgetProps> = ({ 
   children, 
@@ -36,8 +38,10 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
 
   // Resize State
   const isResizing = useRef(false);
+  const resizeDir = useRef<ResizeDirection>(null);
   const resizeStart = useRef({ x: 0, y: 0 });
   const initialSize = useRef({ w: 0, h: 0 });
+  const initialResizePos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleClickOutside = (event: any) => {
@@ -69,27 +73,70 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
   };
 
   // --- RESIZE HANDLERS ---
-  const handleResizeStart = (clientX: number, clientY: number) => {
+  const handleResizeStart = (e: React.MouseEvent | React.TouchEvent, dir: ResizeDirection) => {
     if (locked) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    let clientX, clientY;
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
     isResizing.current = true;
+    resizeDir.current = dir;
     resizeStart.current = { x: clientX, y: clientY };
     initialSize.current = { w: width, h: height };
+    initialResizePos.current = { ...position };
   };
 
   const handleResizeMove = (clientX: number, clientY: number) => {
-    if (!isResizing.current) return;
+    if (!isResizing.current || !resizeDir.current) return;
+    
     const dx = clientX - resizeStart.current.x;
     const dy = clientY - resizeStart.current.y;
     
-    const newWidth = Math.max(minWidth, initialSize.current.w + dx);
-    const newHeight = Math.max(minHeight, initialSize.current.h + dy);
-    
-    onResize(newWidth, newHeight);
+    let newW = initialSize.current.w;
+    let newH = initialSize.current.h;
+    let newX = initialResizePos.current.x;
+    let newY = initialResizePos.current.y;
+
+    // Calculate new dimensions and position based on direction
+    if (resizeDir.current.includes('e')) {
+      newW = Math.max(minWidth, initialSize.current.w + dx);
+    }
+    if (resizeDir.current.includes('s')) {
+      newH = Math.max(minHeight, initialSize.current.h + dy);
+    }
+    if (resizeDir.current.includes('w')) {
+      const proposedW = initialSize.current.w - dx;
+      if (proposedW >= minWidth) {
+        newW = proposedW;
+        newX = initialResizePos.current.x + dx;
+      }
+    }
+    if (resizeDir.current.includes('n')) {
+      const proposedH = initialSize.current.h - dy;
+      if (proposedH >= minHeight) {
+        newH = proposedH;
+        newY = initialResizePos.current.y + dy;
+      }
+    }
+
+    onResize(newW, newH);
+    if (newX !== position.x || newY !== position.y) {
+      onPositionChange(newX, newY);
+    }
   };
 
   const handleEnd = () => {
     isDragging.current = false;
     isResizing.current = false;
+    resizeDir.current = null;
   };
 
   // --- GLOBAL LISTENERS ---
@@ -106,11 +153,10 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
     };
     
     const onTouchMove = (e: TouchEvent) => {
-      if (isDragging.current && e.touches.length > 0) {
-        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
-      if (isResizing.current && e.touches.length > 0) {
-        handleResizeMove(e.touches[0].clientX, e.touches[0].clientY);
+      if ((isDragging.current || isResizing.current) && e.touches.length > 0) {
+        const t = e.touches[0];
+        if (isDragging.current) handleDragMove(t.clientX, t.clientY);
+        if (isResizing.current) handleResizeMove(t.clientX, t.clientY);
       }
     };
 
@@ -132,7 +178,7 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
   return (
     <div 
       ref={widgetRef} 
-      className={`absolute transition-colors duration-200 ${isSelected && !locked ? 'z-50 ring-1 ring-yellow-400/50' : 'z-10'} ${className}`} 
+      className={`absolute transition-none ${isSelected && !locked ? 'z-50' : 'z-10'} ${className}`} 
       style={{ 
         transform: `translate(${position.x}px, ${position.y}px)`,
         width: width,
@@ -143,50 +189,64 @@ const ResizableWidget: React.FC<ResizableWidgetProps> = ({
       }}
       onClick={(e) => { if(!locked) { e.stopPropagation(); setIsSelected(true); } }}
     >
-      <div className="w-full h-full overflow-hidden">
+      <div className="w-full h-full relative">
         {children}
-      </div>
-      
-      {!locked && (
-        <>
-          {/* DRAG HANDLE (Top Center) */}
-          <div 
-            className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-6 bg-yellow-500 rounded-full shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing z-[60] hover:scale-110 transition-transform"
-            onMouseDown={(e) => { 
-              e.preventDefault(); 
-              e.stopPropagation();
-              handleDragStart(e.clientX, e.clientY); 
-            }}
-            onTouchStart={(e) => { 
-              e.preventDefault(); 
-              e.stopPropagation();
-              if (e.touches && e.touches.length > 0) {
-                 handleDragStart(e.touches[0].clientX, e.touches[0].clientY); 
-              }
-            }}
-          >
-            <GripHorizontal size={20} className="text-black" />
-          </div>
 
-          {/* Border Indicator */}
-          <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-yellow-400/50 rounded-xl"></div>
-          
-          {/* Resize Handle (Bottom Right) */}
-          <div 
-            className="resize-handle absolute -bottom-3 -right-3 w-8 h-8 bg-yellow-400 rounded-full shadow-lg flex items-center justify-center cursor-nwse-resize pointer-events-auto hover:scale-110 active:bg-yellow-300 z-50" 
-            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleResizeStart(e.clientX, e.clientY); }}
-            onTouchStart={(e) => { 
-              e.stopPropagation(); 
-              e.preventDefault(); 
-              if (e.touches && e.touches.length > 0) {
-                handleResizeStart(e.touches[0].clientX, e.touches[0].clientY); 
-              }
-            }}
-          >
-            <MoveDiagonal size={16} className="text-black" />
-          </div>
-        </>
-      )}
+        {/* Highlight Border when selected */}
+        {!locked && isSelected && (
+           <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-yellow-400/60 rounded-3xl z-40"></div>
+        )}
+
+        {/* Controls */}
+        {!locked && (
+          <>
+            {/* DRAG HANDLE (Top Center) */}
+            <div 
+              className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-5 bg-yellow-500 rounded-full shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing z-[60] hover:scale-110 transition-transform"
+              onMouseDown={(e) => { 
+                e.preventDefault(); 
+                e.stopPropagation();
+                handleDragStart(e.clientX, e.clientY); 
+              }}
+              onTouchStart={(e) => { 
+                e.preventDefault(); 
+                e.stopPropagation();
+                if (e.touches && e.touches.length > 0) {
+                   handleDragStart(e.touches[0].clientX, e.touches[0].clientY); 
+                }
+              }}
+            >
+              <GripHorizontal size={16} className="text-black" />
+            </div>
+
+            {/* RESIZE HANDLES (4 Corners) */}
+            {/* Top Left */}
+            <div 
+              className="absolute -top-2 -left-2 w-6 h-6 bg-yellow-400 rounded-full shadow-md cursor-nw-resize z-50 hover:scale-125 transition-transform"
+              onMouseDown={(e) => handleResizeStart(e, 'nw')}
+              onTouchStart={(e) => handleResizeStart(e, 'nw')}
+            />
+            {/* Top Right */}
+            <div 
+              className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full shadow-md cursor-ne-resize z-50 hover:scale-125 transition-transform"
+              onMouseDown={(e) => handleResizeStart(e, 'ne')}
+              onTouchStart={(e) => handleResizeStart(e, 'ne')}
+            />
+            {/* Bottom Left */}
+            <div 
+              className="absolute -bottom-2 -left-2 w-6 h-6 bg-yellow-400 rounded-full shadow-md cursor-sw-resize z-50 hover:scale-125 transition-transform"
+              onMouseDown={(e) => handleResizeStart(e, 'sw')}
+              onTouchStart={(e) => handleResizeStart(e, 'sw')}
+            />
+            {/* Bottom Right */}
+            <div 
+              className="absolute -bottom-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full shadow-md cursor-se-resize z-50 hover:scale-125 transition-transform"
+              onMouseDown={(e) => handleResizeStart(e, 'se')}
+              onTouchStart={(e) => handleResizeStart(e, 'se')}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 };
