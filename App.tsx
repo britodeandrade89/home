@@ -12,16 +12,32 @@ import ClockWidget from './components/ClockWidget';
 import WeatherWidget from './components/WeatherWidget';
 import ChefModal from './components/ChefModal';
 import ChatModal from './components/ChatModal';
+import { ErrorBoundary } from 'react-error-boundary';
 
 // COORDENADAS FIXAS DE MARICÁ (Pedido do usuário)
 const MARICA_COORDS = { lat: -22.9194, lon: -42.8186 };
+
+// Fallback component for error boundary
+function ErrorFallback({error, resetErrorBoundary}: any) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-black/50 p-4 text-center">
+      <p className="text-red-400 font-bold mb-2">Ops! Algo deu errado.</p>
+      <pre className="text-xs text-white/50 mb-4 whitespace-pre-wrap">{error.message}</pre>
+      <button onClick={resetErrorBoundary} className="bg-white/10 px-4 py-2 rounded-lg text-sm hover:bg-white/20">
+        Tentar Novamente
+      </button>
+    </div>
+  );
+}
 
 const App = () => {
   // --- STATE ---
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState<WeatherData>({ 
     temperature: '25', weathercode: 0, is_day: 1, apparent_temperature: '27', 
-    precipitation_probability: 0, wind_speed: 0, relative_humidity_2m: 70 
+    precipitation_probability: 0, wind_speed: 0, relative_humidity_2m: 70,
+    daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] },
+    hourly: { time: [], temperature_2m: [], weathercode: [] }
   });
   const [locationName, setLocationName] = useState('Maricá - RJ');
   const [beachReport, setBeachReport] = useState<any>(null);
@@ -156,7 +172,11 @@ const App = () => {
 
     recognition.onresult = (event: any) => {
       if (!event.results || event.results.length === 0) return;
-      const transcript = Array.from(event.results).map((r: any) => (r[0] ? r[0].transcript : '')).join(' ').toLowerCase();
+      // SAFEGUARD: Check r[0] existence before accessing transcript
+      const transcript = Array.from(event.results)
+        .map((r: any) => (r && r[0] ? r[0].transcript : ''))
+        .join(' ').toLowerCase();
+        
       const lastSlice = transcript.slice(-40);
       if (lastSlice.includes('olá smart home') || lastSlice.includes('ola smart home')) {
         recognition.stop();
@@ -185,7 +205,9 @@ const App = () => {
       cmd.lang = 'pt-BR';
 
       cmd.onresult = async (e: any) => {
-        if (!e.results || e.results.length === 0 || !e.results[0]) return;
+        // SAFEGUARD: Robust checks for result structure
+        if (!e.results || e.results.length === 0 || !e.results[0] || e.results[0].length === 0) return;
+        
         const command = e.results[0][0].transcript;
         setIsProcessingAI(true);
         
@@ -238,13 +260,19 @@ const App = () => {
   const handleResize = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    
+    // Calcula tamanhos responsivos
+    const weatherW = Math.min(350, w * 0.35);
+    const clockW = Math.min(300, w * 0.3);
+    const dateW = Math.min(1200, w * 0.9);
+    
     setWidgets(prev => ({
         ...prev,
-        clock: { ...prev.clock, x: 40, y: 40 },
-        weather: { ...prev.weather, x: w - prev.weather.width - 40, y: 40 },
+        clock: { ...prev.clock, width: clockW, x: 40, y: 40 },
+        weather: { ...prev.weather, width: weatherW, x: w - weatherW - 40, y: 40 },
         prev: { ...prev.prev, x: 40, y: h - prev.prev.height - 40 },
         next: { ...prev.next, x: w - prev.next.width - 40, y: h - prev.next.height - 40 },
-        date: { ...prev.date, x: (w / 2) - (prev.date.width / 2), y: (h / 2) - (prev.date.height / 2) } 
+        date: { ...prev.date, width: dateW, x: (w / 2) - (dateW / 2), y: (h / 2) - (prev.date.height / 2) } 
     }));
   }, []);
 
@@ -452,63 +480,69 @@ const App = () => {
       <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       <section className="absolute inset-0 z-10 w-full h-full">
-        <ResizableWidget 
-            width={widgets.clock.width} height={widgets.clock.height} onResize={(w, h) => updateWidget('clock', { width: w, height: h })}
-            locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onPositionChange={(x, y) => updateWidget('clock', { x, y })}
-        >
-             <ClockWidget currentTime={currentTime} greeting={greeting} />
-        </ResizableWidget>
+        <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+            <ResizableWidget 
+                width={widgets.clock.width} height={widgets.clock.height} onResize={(w, h) => updateWidget('clock', { width: w, height: h })}
+                locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onPositionChange={(x, y) => updateWidget('clock', { x, y })}
+            >
+                <ClockWidget currentTime={currentTime} greeting={greeting} />
+            </ResizableWidget>
+        </ErrorBoundary>
 
-        <ResizableWidget 
-            width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
-            locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onPositionChange={(x, y) => updateWidget('weather', { x, y })}
-        >
-           <div className="flex flex-col items-end w-full h-full">
-             <div className="flex gap-2 mb-2 shrink-0">
-                <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                    {wakeLockActive ? <Lock size={16} /> : <Unlock size={16}/>}
-                </button>
-              </div>
-              <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
-           </div>
-        </ResizableWidget>
-
-        <ResizableWidget 
-            width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
-            locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onPositionChange={(x, y) => updateWidget('date', { x, y })}
-        >
-            <div className="flex flex-col items-center w-full h-full justify-center">
-              <div className="text-center drop-shadow-2xl">
-                {/* Dobro do tamanho das fontes originais */}
-                <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
-                <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
-              </div>
-              
-              {/* Reminder Box Aumentado Proporcionalmente */}
-              <div className="mt-20 w-[70%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
-                 <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
-                 <div className="flex items-center gap-6 px-8 w-full">
-                    <Bell size={42} className="text-yellow-400 shrink-0" />
-                    <div className="flex-1 overflow-hidden h-24 flex items-center">
-                       {allReminders.length > 0 ? (
-                         <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-8">
-                            {/* Duplicar lista para efeito infinito suave se necessário, ou apenas renderizar a lista inteira */}
-                            {[...allReminders, ...allReminders].map((reminder, idx) => (
-                                <div key={`${reminder.id}-${idx}`} className="mb-4">
-                                    <p className="text-2xl font-bold uppercase text-white/50 mb-1">
-                                        {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
-                                    </p>
-                                    <p className="text-4xl font-medium truncate leading-tight">{reminder.text}</p>
-                                </div>
-                            ))}
-                         </div>
-                       ) : (<p className="text-2xl text-white/40 italic">Sem lembretes.</p>)}
-                    </div>
-                 </div>
-              </div>
+        <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setWeather({...weather, daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }})}>
+            <ResizableWidget 
+                width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
+                locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onPositionChange={(x, y) => updateWidget('weather', { x, y })}
+            >
+            <div className="flex flex-col items-end w-full h-full">
+                <div className="flex gap-2 mb-2 shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
+                        {wakeLockActive ? <Lock size={16} /> : <Unlock size={16}/>}
+                    </button>
+                </div>
+                <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
             </div>
-        </ResizableWidget>
+            </ResizableWidget>
+        </ErrorBoundary>
+
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <ResizableWidget 
+                width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
+                locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onPositionChange={(x, y) => updateWidget('date', { x, y })}
+            >
+                <div className="flex flex-col items-center w-full h-full justify-center">
+                <div className="text-center drop-shadow-2xl">
+                    {/* Dobro do tamanho das fontes originais */}
+                    <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
+                    <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                    <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                </div>
+                
+                {/* Reminder Box Aumentado Proporcionalmente */}
+                <div className="mt-20 w-[70%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
+                    <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
+                    <div className="flex items-center gap-6 px-8 w-full">
+                        <Bell size={42} className="text-yellow-400 shrink-0" />
+                        <div className="flex-1 overflow-hidden h-24 flex items-center">
+                        {allReminders.length > 0 ? (
+                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-8">
+                                {/* Duplicar lista para efeito infinito suave se necessário, ou apenas renderizar a lista inteira */}
+                                {[...allReminders, ...allReminders].map((reminder, idx) => (
+                                    <div key={`${reminder.id}-${idx}`} className="mb-4">
+                                        <p className="text-2xl font-bold uppercase text-white/50 mb-1">
+                                            {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                        </p>
+                                        <p className="text-4xl font-medium truncate leading-tight">{reminder.text}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (<p className="text-2xl text-white/40 italic">Sem lembretes.</p>)}
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </ResizableWidget>
+        </ErrorBoundary>
 
         <ResizableWidget 
             width={widgets.prev.width} height={widgets.prev.height} onResize={(w, h) => updateWidget('prev', { width: w, height: h })}

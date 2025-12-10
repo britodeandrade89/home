@@ -50,7 +50,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) 
 
   // Helper para Previsão Diária
   const renderDailyForecast = () => {
-    if (!weather.daily) return null;
+    if (!weather.daily || !weather.daily.time) return null;
     const { time, weathercode, temperature_2m_max, temperature_2m_min } = weather.daily;
 
     // Pega os próximos 7 dias (index 1 a 7, pulando hoje index 0 se quiser, ou 0 a 6)
@@ -59,13 +59,18 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) 
       const date = new Date(dateStr);
       const dayName = i === 0 ? 'Hoje' : date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
       
+      // CRITICAL FIX: Safe access to arrays using optional chaining and defaults
+      const code = weathercode?.[i] ?? 0;
+      const max = Math.round(temperature_2m_max?.[i] ?? 0);
+      const min = Math.round(temperature_2m_min?.[i] ?? 0);
+
       return (
         <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
           <span className="text-sm font-bold w-12 capitalize opacity-80">{dayName}</span>
-          <span className="text-xl">{getWeatherIcon(weathercode[i])}</span>
+          <span className="text-xl">{getWeatherIcon(code)}</span>
           <div className="flex gap-2 text-sm w-20 justify-end">
-            <span className="font-bold">{Math.round(temperature_2m_max[i])}°</span>
-            <span className="opacity-50">{Math.round(temperature_2m_min[i])}°</span>
+            <span className="font-bold">{max}°</span>
+            <span className="opacity-50">{min}°</span>
           </div>
         </div>
       );
@@ -74,15 +79,15 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName }) 
 
   // Helper para Previsão Horária (Próximas 12h)
   const renderHourlyForecast = () => {
-    if (!weather.hourly) return null;
+    if (!weather.hourly || !weather.hourly.time) return null;
     const currentHour = new Date().getHours();
     
-    // Filtra para começar da hora atual
+    // Filtra para começar da hora atual e usa optional chaining e valores padrão para evitar erros
     const nextHours = weather.hourly.time
         .map((t, i) => ({
             time: t,
-            temp: weather.hourly!.temperature_2m[i],
-            code: weather.hourly!.weathercode[i]
+            temp: weather.hourly?.temperature_2m?.[i] ?? 0,
+            code: weather.hourly?.weathercode?.[i] ?? 0
         }))
         .filter((_, i) => i >= currentHour && i < currentHour + 12); // Próximas 12h
 
