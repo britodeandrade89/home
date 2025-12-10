@@ -337,13 +337,48 @@ const App = () => {
   // --- BACKGROUND ---
   const getBackgroundStyle = () => {
        const code = weather?.weathercode || 0;
-       const isDay = weather?.is_day === 1;
-       let imageId = '1622396481328-9b1b78cdd9fd'; 
-       let overlayColor = 'rgba(0,0,0,0.3)'; 
-       if (code >= 95) { imageId = '1605727216801-e27ce1d0cc28'; overlayColor = 'rgba(20, 0, 30, 0.4)'; }
-       else if ((code >= 51)) { imageId = '1515694346937-94d85e41e6f0'; overlayColor = 'rgba(0, 10, 30, 0.5)'; }
-       else if (code >= 2) { imageId = isDay ? '1534088568595-a066f410bcda' : '1536746803623-cef8708094dd'; overlayColor = 'rgba(10, 10, 20, 0.5)'; }
-       else if (!isDay) { imageId = '1532978873691-590b122e7876'; overlayColor = 'rgba(0, 0, 20, 0.4)'; }
+       
+       // Garante que é noite se for entre 18h e 05h da manhã, independente da API
+       const hour = currentTime.getHours();
+       const isSystemNight = hour >= 18 || hour < 5;
+       const isNight = weather?.is_day === 0 || isSystemNight;
+
+       let imageId = ''; 
+       let overlayColor = ''; 
+
+       // 1. Tempestade
+       if (code >= 95) { 
+           imageId = '1605727216801-e27ce1d0cc28'; // Lightning
+           overlayColor = 'rgba(20, 0, 30, 0.6)'; 
+       }
+       // 2. Chuva (Qualquer)
+       else if (code >= 51) { 
+           // Janela com chuva (serve bem para noite e dia) ou rua chuvosa
+           imageId = '1515694346937-94d85e41e6f0'; 
+           overlayColor = isNight ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 10, 30, 0.4)'; 
+       }
+       // 3. Nublado
+       else if (code >= 2) { 
+           if (isNight) {
+               imageId = '1536746803623-cef8708094dd'; // Dark clouds night
+               overlayColor = 'rgba(0, 0, 0, 0.6)';
+           } else {
+               imageId = '1534088568595-a066f410bcda'; // Cloudy Beach Day
+               overlayColor = 'rgba(0, 0, 0, 0.2)';
+           }
+       }
+       // 4. Limpo / Parcialmente Nublado
+       else {
+           if (isNight) {
+               // Noite: Céu estrelado sobre água ou horizonte escuro
+               imageId = '1470252649378-9c2974240315'; 
+               overlayColor = 'rgba(0, 10, 40, 0.5)';
+           } else {
+               // Dia: Praia ensolarada (Maricá vibe)
+               imageId = '1507525428034-b723cf961d3e'; 
+               overlayColor = 'rgba(0, 0, 0, 0.1)';
+           }
+       }
 
        const finalUrl = `https://images.unsplash.com/photo-${imageId}?q=80&w=1920&auto=format&fit=crop`;
        return { 
