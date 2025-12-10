@@ -7,6 +7,12 @@ export interface DailyForecast {
   uv_index_max?: number[];
 }
 
+export interface HourlyForecast {
+  time: string[];
+  temperature_2m: number[];
+  weathercode: number[];
+}
+
 export interface WeatherData {
   temperature: number | string;
   weathercode: number;
@@ -15,6 +21,7 @@ export interface WeatherData {
   precipitation_probability: number;
   wind_speed: number;
   daily?: DailyForecast;
+  hourly?: HourlyForecast;
   relative_humidity_2m?: number;
   surface_pressure?: number;
   visibility?: number;
