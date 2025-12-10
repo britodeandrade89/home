@@ -218,7 +218,7 @@ export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandR
     const systemInstruction = `
       Você é o "Smart Home". Analise o comando do usuário.
       1. Se o usuário disser apenas "ler notícias", "notícias", "o que está acontecendo", retorne action="read_news_init" e response="Qual notícia você quer que eu leia?".
-      2. Se o usuário disser "ler notícias sobre [TÓPICO]" ou "notícias de [TÓPICO]", retorne action="read_news_init", text="[TÓPICO]" e response="Buscando notícias sobre [TÓPICO]...".
+      2. Se o usuário disser "ler notícias sobre [TÓPICO]", "notícias de [TÓPICO]" ou "fale sobre [TÓPICO]", retorne action="read_news_init", text="[TÓPICO]" e response="Buscando notícias sobre [TÓPICO]...".
       3. Se for para adicionar um lembrete, tarefa ou compromisso, retorne action="add_reminder".
       4. Se for uma pergunta geral ou conversa, retorne action="chat".
       Classifique lembretes em: 'info', 'alert' (urgente) ou 'action' (tarefa).

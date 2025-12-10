@@ -188,11 +188,13 @@ const App = () => {
           const result = await processVoiceCommandAI(command);
           if (result) {
             if (result.action === 'read_news_init') {
+               // FEATURE: Directly read news if topic is provided
                if (result.text) {
-                  speak("Buscando...");
+                  speak(`Buscando notícias sobre ${result.text}...`);
                   const report = await generateNewsReport(result.text);
                   speak(report, 1.25);
                } else {
+                  // Fallback to asking
                   setNewsSearchMode(true);
                   speak(result.response || "Qual notícia?");
                }
@@ -404,20 +406,27 @@ const App = () => {
               <div className="text-center drop-shadow-2xl">
                 {/* Dobro do tamanho das fontes originais */}
                 <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
-                <span className="block text-[24rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                <span className="block text-9xl font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
               </div>
               
               {/* Reminder Box Aumentado Proporcionalmente */}
-              <div className="mt-20 w-[95%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
+              <div className="mt-20 w-[70%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
                  <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
                  <div className="flex items-center gap-6 px-8 w-full">
                     <Bell size={42} className="text-yellow-400 shrink-0" />
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 overflow-hidden h-24 flex items-center">
                        {allReminders.length > 0 ? (
-                         <div className="animate-fade-in" key={currentReminderIndex}>
-                            <p className="text-2xl font-bold uppercase text-white/50 mb-1">{allReminders[currentReminderIndex]?.time} • {allReminders[currentReminderIndex]?.type === 'alert' ? 'Urgente' : 'Lembrete'}</p>
-                            <p className="text-4xl font-medium truncate leading-tight">{allReminders[currentReminderIndex]?.text}</p>
+                         <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-8">
+                            {/* Duplicar lista para efeito infinito suave se necessário, ou apenas renderizar a lista inteira */}
+                            {[...allReminders, ...allReminders].map((reminder, idx) => (
+                                <div key={`${reminder.id}-${idx}`} className="mb-4">
+                                    <p className="text-2xl font-bold uppercase text-white/50 mb-1">
+                                        {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                    </p>
+                                    <p className="text-4xl font-medium truncate leading-tight">{reminder.text}</p>
+                                </div>
+                            ))}
                          </div>
                        ) : (<p className="text-2xl text-white/40 italic">Sem lembretes.</p>)}
                     </div>
