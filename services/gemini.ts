@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 
-// CRITICAL FIX: Removed process.env to prevent "ReferenceError" in browser.
-// Using the provided key directly.
+// Usando a chave API fornecida explicitamente
 const apiKey = "AIzaSyCJ9K6sovkNzeO_fuQbSPD9LnIUG0p8Da4";
 
 const ai = new GoogleGenAI({ apiKey });

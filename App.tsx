@@ -60,8 +60,9 @@ const App = () => {
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
     clock: { width: 300, height: 150, x: 40, y: 40 },
+    reminders: { width: 600, height: 120, x: 400, y: 40 }, // Novo widget separado
     weather: { width: 350, height: 500, x: 0, y: 40 }, 
-    date: { width: 1200, height: 1000, x: 0, y: 0 }, 
+    date: { width: 1000, height: 600, x: 0, y: 0 }, 
     prev: { width: 250, height: 150, x: 40, y: 0 },
     next: { width: 250, height: 150, x: 0, y: 0 },
   });
@@ -264,15 +265,23 @@ const App = () => {
     // Calcula tamanhos responsivos
     const weatherW = Math.min(350, w * 0.35);
     const clockW = Math.min(300, w * 0.3);
-    const dateW = Math.min(1200, w * 0.9);
+    const dateW = Math.min(1000, w * 0.9);
+    const remindersW = Math.min(600, w * 0.5);
     
     setWidgets(prev => ({
         ...prev,
+        // Relógio: Canto superior Esquerdo
         clock: { ...prev.clock, width: clockW, x: 40, y: 40 },
+        // Lembretes: Topo Centro (entre relogio e tempo)
+        reminders: { ...prev.reminders, width: remindersW, x: (w / 2) - (remindersW / 2), y: 40 },
+        // Clima: Canto superior Direito
         weather: { ...prev.weather, width: weatherW, x: w - weatherW - 40, y: 40 },
+        // Data (Hoje): Centralizado na parte inferior/meio
+        date: { ...prev.date, width: dateW, x: (w / 2) - (dateW / 2), y: (h * 0.4) }, 
+        // Ontem: Canto Inferior Esquerdo
         prev: { ...prev.prev, x: 40, y: h - prev.prev.height - 40 },
-        next: { ...prev.next, x: w - prev.next.width - 40, y: h - prev.next.height - 40 },
-        date: { ...prev.date, width: dateW, x: (w / 2) - (dateW / 2), y: (h / 2) - (prev.date.height / 2) } 
+        // Amanhã: Canto Inferior Direito (garantindo que não sobreponha o clima)
+        next: { ...prev.next, x: w - prev.next.width - 40, y: h - prev.next.height - 40 }
     }));
   }, []);
 
@@ -293,7 +302,6 @@ const App = () => {
       const data = await fetchWeatherData(MARICA_COORDS);
       if (data) {
         setWeather(data);
-        // Atualiza o relatório da praia junto com o clima
         const bReport = await generateBeachReport(data, 'Maricá');
         setBeachReport(bReport);
       }
@@ -302,7 +310,6 @@ const App = () => {
     loadWeather();
     const wInterval = setInterval(loadWeather, 900000); 
 
-    // Install Prompt Listener
     const handler = (e: any) => { 
         e.preventDefault(); 
         setInstallPrompt(e); 
@@ -328,7 +335,6 @@ const App = () => {
     };
   }, [handleResize]);
 
-  // Voice Init
   useEffect(() => {
     startWakeWordListener();
     return () => {
@@ -336,7 +342,6 @@ const App = () => {
       if (commandRef.current) commandRef.current.stop();
     };
   }, [startWakeWordListener]);
-
 
   // --- HELPERS ---
   const getDateInfo = (d: Date) => ({
@@ -348,7 +353,6 @@ const App = () => {
   const yesterday = getDateInfo(new Date(new Date().setDate(currentTime.getDate() - 1)));
   const tomorrow = getDateInfo(new Date(new Date().setDate(currentTime.getDate() + 1)));
 
-  // Cyclical Reminders
   const getCyclicalReminders = (): Reminder[] => {
     const day = currentTime.getDay();
     const hour = currentTime.getHours();
@@ -367,11 +371,8 @@ const App = () => {
   };
   const allReminders = [...getCyclicalReminders(), ...reminders];
 
-  // --- BACKGROUND ---
   const getBackgroundStyle = () => {
        const code = weather?.weathercode || 0;
-       
-       // Garante que é noite se for entre 18h e 05h da manhã, independente da API
        const hour = currentTime.getHours();
        const isSystemNight = hour >= 18 || hour < 5;
        const isNight = weather?.is_day === 0 || isSystemNight;
@@ -379,35 +380,28 @@ const App = () => {
        let imageId = ''; 
        let overlayColor = ''; 
 
-       // 1. Tempestade
        if (code >= 95) { 
-           imageId = '1605727216801-e27ce1d0cc28'; // Lightning
+           imageId = '1605727216801-e27ce1d0cc28';
            overlayColor = 'rgba(20, 0, 30, 0.6)'; 
        }
-       // 2. Chuva (Qualquer)
        else if (code >= 51) { 
-           // Janela com chuva (serve bem para noite e dia) ou rua chuvosa
            imageId = '1515694346937-94d85e41e6f0'; 
            overlayColor = isNight ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 10, 30, 0.4)'; 
        }
-       // 3. Nublado
        else if (code >= 2) { 
            if (isNight) {
-               imageId = '1536746803623-cef8708094dd'; // Dark clouds night
+               imageId = '1536746803623-cef8708094dd';
                overlayColor = 'rgba(0, 0, 0, 0.6)';
            } else {
-               imageId = '1534088568595-a066f410bcda'; // Cloudy Beach Day
+               imageId = '1534088568595-a066f410bcda';
                overlayColor = 'rgba(0, 0, 0, 0.2)';
            }
        }
-       // 4. Limpo / Parcialmente Nublado
        else {
            if (isNight) {
-               // Noite: Céu estrelado sobre água ou horizonte escuro
                imageId = '1470252649378-9c2974240315'; 
                overlayColor = 'rgba(0, 10, 40, 0.5)';
            } else {
-               // Dia: Praia ensolarada (Maricá vibe)
                imageId = '1507525428034-b723cf961d3e'; 
                overlayColor = 'rgba(0, 0, 0, 0.1)';
            }
@@ -451,7 +445,6 @@ const App = () => {
         <h1 className="text-4xl font-bold uppercase tracking-[0.3em] mb-4 text-center px-4">Smart Home</h1>
         <p className="text-xl opacity-70 mb-8 animate-bounce">Toque para Iniciar</p>
         
-        {/* Mostra botão de instalar na tela de início se disponível */}
         {showInstallModal && (
             <button 
                 onClick={handleInstallApp}
@@ -470,7 +463,6 @@ const App = () => {
   return (
     <main ref={appRef} className="w-full h-screen overflow-hidden relative text-white font-sans select-none transition-all duration-1000" style={getBackgroundStyle()}>
       
-      {/* Install Modal In-App */}
       {showInstallModal && <InstallPromptModal />}
 
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
@@ -494,6 +486,35 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
+        {/* WIDGET DE LEMBRETES SEPARADO (TOPO) */}
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <ResizableWidget 
+                width={widgets.reminders.width} height={widgets.reminders.height} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })}
+                locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}
+            >
+                <div className="w-full h-full bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative flex items-center">
+                    <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
+                    <div className="flex items-center gap-6 px-8 w-full">
+                        <Bell size={32} className="text-yellow-400 shrink-0" />
+                        <div className="flex-1 overflow-hidden h-full flex items-center">
+                        {allReminders.length > 0 ? (
+                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-4 pt-4">
+                                {[...allReminders, ...allReminders].map((reminder, idx) => (
+                                    <div key={`${reminder.id}-${idx}`} className="mb-2">
+                                        <p className="text-xs font-bold uppercase text-white/50 mb-0.5">
+                                            {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                        </p>
+                                        <p className="text-xl font-medium truncate leading-tight">{reminder.text}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (<p className="text-lg text-white/40 italic">Sem lembretes.</p>)}
+                        </div>
+                    </div>
+                </div>
+            </ResizableWidget>
+        </ErrorBoundary>
+
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setWeather({...weather, daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }})}>
             <ResizableWidget 
                 width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
@@ -510,41 +531,18 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
+        {/* WIDGET DE DATA (AGORA EM BAIXO) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onPositionChange={(x, y) => updateWidget('date', { x, y })}
             >
                 <div className="flex flex-col items-center w-full h-full justify-center">
-                <div className="text-center drop-shadow-2xl">
-                    {/* Dobro do tamanho das fontes originais */}
-                    <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
-                    <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                    <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
-                </div>
-                
-                {/* Reminder Box Aumentado Proporcionalmente */}
-                <div className="mt-20 w-[70%] bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative h-32 flex items-center shrink-0">
-                    <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
-                    <div className="flex items-center gap-6 px-8 w-full">
-                        <Bell size={42} className="text-yellow-400 shrink-0" />
-                        <div className="flex-1 overflow-hidden h-24 flex items-center">
-                        {allReminders.length > 0 ? (
-                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-8">
-                                {/* Duplicar lista para efeito infinito suave se necessário, ou apenas renderizar a lista inteira */}
-                                {[...allReminders, ...allReminders].map((reminder, idx) => (
-                                    <div key={`${reminder.id}-${idx}`} className="mb-4">
-                                        <p className="text-2xl font-bold uppercase text-white/50 mb-1">
-                                            {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
-                                        </p>
-                                        <p className="text-4xl font-medium truncate leading-tight">{reminder.text}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (<p className="text-2xl text-white/40 italic">Sem lembretes.</p>)}
-                        </div>
+                    <div className="text-center drop-shadow-2xl">
+                        <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
+                        <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                        <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
                     </div>
-                </div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
