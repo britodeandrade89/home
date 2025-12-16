@@ -60,9 +60,9 @@ const App = () => {
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
     clock: { width: 300, height: 150, x: 40, y: 40 },
-    reminders: { width: 600, height: 120, x: 400, y: 40 }, // Novo widget separado
-    weather: { width: 350, height: 500, x: 0, y: 40 }, 
-    date: { width: 1000, height: 600, x: 0, y: 0 }, 
+    reminders: { width: 360, height: 400, x: 0, y: 0 }, 
+    weather: { width: 360, height: 400, x: 0, y: 0 }, 
+    date: { width: 800, height: 500, x: 0, y: 0 }, 
     prev: { width: 250, height: 150, x: 40, y: 0 },
     next: { width: 250, height: 150, x: 0, y: 0 },
   });
@@ -262,26 +262,57 @@ const App = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     
-    // Calcula tamanhos responsivos
-    const weatherW = Math.min(350, w * 0.35);
-    const clockW = Math.min(300, w * 0.3);
-    const dateW = Math.min(1000, w * 0.9);
-    const remindersW = Math.min(600, w * 0.5);
+    // DEFINIÇÃO DA COLUNA LATERAL DIREITA
+    // Largura da barra lateral (mínimo 320px para caber os widgets, ideal 360px)
+    const sidebarWidth = Math.max(340, Math.min(400, w * 0.30)); 
+    const mainContentWidth = w - sidebarWidth; // Espaço restante na esquerda
     
+    // Altura dividida ao meio para a coluna direita
+    const sidebarWidgetHeight = (h / 2) - 10; // Pequena margem
+
     setWidgets(prev => ({
         ...prev,
-        // Relógio: Canto superior Esquerdo
-        clock: { ...prev.clock, width: clockW, x: 40, y: 40 },
-        // Lembretes: Topo Centro (entre relogio e tempo)
-        reminders: { ...prev.reminders, width: remindersW, x: (w / 2) - (remindersW / 2), y: 40 },
-        // Clima: Canto superior Direito
-        weather: { ...prev.weather, width: weatherW, x: w - weatherW - 40, y: 40 },
-        // Data (Hoje): Centralizado na parte inferior/meio
-        date: { ...prev.date, width: dateW, x: (w / 2) - (dateW / 2), y: (h * 0.4) }, 
-        // Ontem: Canto Inferior Esquerdo
+        
+        // --- COLUNA DIREITA ---
+        
+        // 1. Lembretes: Topo Direito (Metade de cima)
+        reminders: { 
+            width: sidebarWidth - 20, 
+            height: sidebarWidgetHeight, 
+            x: mainContentWidth + 10, 
+            y: 10 
+        },
+
+        // 2. Clima: Baixo Direito (Metade de baixo)
+        weather: { 
+            width: sidebarWidth - 20, 
+            height: sidebarWidgetHeight, 
+            x: mainContentWidth + 10, 
+            y: (h / 2) + 5
+        },
+
+        // --- COLUNA ESQUERDA (ÁREA PRINCIPAL) ---
+
+        // 3. Relógio: Canto Superior Esquerdo
+        clock: { ...prev.clock, width: Math.min(300, mainContentWidth * 0.4), x: 40, y: 40 },
+        
+        // 4. Data (Hoje): Centralizado na área principal restante
+        date: { 
+            width: mainContentWidth * 0.7, 
+            height: h * 0.5, 
+            x: (mainContentWidth / 2) - ((mainContentWidth * 0.7) / 2), 
+            y: (h / 2) - ((h * 0.5) / 2) 
+        }, 
+        
+        // 5. Ontem: Canto Inferior Esquerdo
         prev: { ...prev.prev, x: 40, y: h - prev.prev.height - 40 },
-        // Amanhã: Canto Inferior Direito (garantindo que não sobreponha o clima)
-        next: { ...prev.next, x: w - prev.next.width - 40, y: h - prev.next.height - 40 }
+        
+        // 6. Amanhã: Canto Inferior Direito DA ÁREA PRINCIPAL (antes da barra lateral)
+        next: { 
+            ...prev.next, 
+            x: mainContentWidth - prev.next.width - 20, 
+            y: h - prev.next.height - 40 
+        }
     }));
   }, []);
 
@@ -486,44 +517,54 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE LEMBRETES SEPARADO (TOPO) */}
+        {/* WIDGET DE LEMBRETES (COLUNA DIREITA - TOPO) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.reminders.width} height={widgets.reminders.height} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}
             >
-                <div className="w-full h-full bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative flex items-center">
-                    <div className="absolute left-0 top-0 bottom-0 w-3 bg-yellow-400/50"></div>
-                    <div className="flex items-center gap-6 px-8 w-full">
-                        <Bell size={32} className="text-yellow-400 shrink-0" />
-                        <div className="flex-1 overflow-hidden h-full flex items-center">
+                <div className="w-full h-full bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative flex flex-col p-4">
+                    <div className="flex items-center gap-2 text-yellow-400 mb-2 shrink-0">
+                        <Bell size={24} />
+                        <span className="text-sm font-bold uppercase tracking-widest">Lembretes</span>
+                    </div>
+                    <div className="h-px w-full bg-white/10 mb-4"></div>
+                    
+                    <div className="flex-1 overflow-hidden relative w-full">
                         {allReminders.length > 0 ? (
-                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-4 pt-4">
+                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-4">
                                 {[...allReminders, ...allReminders].map((reminder, idx) => (
-                                    <div key={`${reminder.id}-${idx}`} className="mb-2">
-                                        <p className="text-xs font-bold uppercase text-white/50 mb-0.5">
-                                            {reminder.time} • {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                    <div key={`${reminder.id}-${idx}`} className="mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                                        <p className="text-xs font-bold uppercase text-white/50 mb-1 flex justify-between">
+                                            <span>{reminder.time}</span>
+                                            <span className={reminder.type === 'alert' ? 'text-red-400' : 'text-blue-300'}>
+                                                {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                            </span>
                                         </p>
-                                        <p className="text-xl font-medium truncate leading-tight">{reminder.text}</p>
+                                        <p className="text-lg font-medium leading-snug">{reminder.text}</p>
                                     </div>
                                 ))}
                             </div>
-                        ) : (<p className="text-lg text-white/40 italic">Sem lembretes.</p>)}
-                        </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-white/30">
+                                <p className="text-lg italic">Sem lembretes.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
 
+        {/* WIDGET DE CLIMA (COLUNA DIREITA - BAIXO) */}
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setWeather({...weather, daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }})}>
             <ResizableWidget 
                 width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onPositionChange={(x, y) => updateWidget('weather', { x, y })}
             >
             <div className="flex flex-col items-end w-full h-full">
-                <div className="flex gap-2 mb-2 shrink-0">
+                <div className="absolute top-2 right-2 z-50">
                     <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                        {wakeLockActive ? <Lock size={16} /> : <Unlock size={16}/>}
+                        {wakeLockActive ? <Lock size={12} /> : <Unlock size={12}/>}
                     </button>
                 </div>
                 <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
@@ -531,7 +572,7 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE DATA (AGORA EM BAIXO) */}
+        {/* WIDGET DE DATA (ÁREA PRINCIPAL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
@@ -540,8 +581,8 @@ const App = () => {
                 <div className="flex flex-col items-center w-full h-full justify-center">
                     <div className="text-center drop-shadow-2xl">
                         <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
-                        <span className="block text-[25vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                        <span className="block text-[10vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                        <span className="block text-[20vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                        <span className="block text-[8vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
                     </div>
                 </div>
             </ResizableWidget>
@@ -562,7 +603,7 @@ const App = () => {
         </ResizableWidget>
       </section>
 
-      <div className="absolute bottom-6 right-1/2 translate-x-1/2 z-50 flex gap-4">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-4">
         <button 
           onClick={() => setIsChatOpen(true)}
           className="p-4 rounded-full shadow-2xl transition-all duration-300 border bg-blue-600 border-blue-400 text-white hover:bg-blue-500 scale-100 active:scale-95"
