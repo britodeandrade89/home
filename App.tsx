@@ -60,10 +60,10 @@ const App = () => {
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
     clock: { width: 300, height: 150, x: 40, y: 40 },
-    reminders: { width: 360, height: 400, x: 0, y: 0 }, 
-    weather: { width: 360, height: 400, x: 0, y: 0 }, 
-    date: { width: 800, height: 500, x: 0, y: 0 }, 
-    prev: { width: 250, height: 150, x: 40, y: 0 },
+    reminders: { width: 300, height: 800, x: 0, y: 0 }, 
+    weather: { width: 300, height: 800, x: 0, y: 0 }, 
+    date: { width: 600, height: 400, x: 0, y: 0 }, 
+    prev: { width: 250, height: 150, x: 0, y: 0 },
     next: { width: 250, height: 150, x: 0, y: 0 },
   });
 
@@ -262,55 +262,63 @@ const App = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     
-    // DEFINIÇÃO DA COLUNA LATERAL DIREITA
-    // Largura da barra lateral (mínimo 320px para caber os widgets, ideal 360px)
-    const sidebarWidth = Math.max(340, Math.min(400, w * 0.30)); 
-    const mainContentWidth = w - sidebarWidth; // Espaço restante na esquerda
+    // DEFINIÇÃO DO LAYOUT EM 3 COLUNAS
     
-    // Altura dividida ao meio para a coluna direita
-    const sidebarWidgetHeight = (h / 2) - 10; // Pequena margem
+    // Largura das colunas laterais (aprox 20-25% da tela cada)
+    const sidebarWidth = Math.max(300, Math.min(400, w * 0.22)); 
+    
+    // Espaço central restante
+    const centerStart = sidebarWidth + 20; // Margem
+    const centerWidth = w - (sidebarWidth * 2) - 40; // Margens
 
     setWidgets(prev => ({
         ...prev,
         
-        // --- COLUNA DIREITA ---
-        
-        // 1. Lembretes: Topo Direito (Metade de cima)
+        // --- COLUNA ESQUERDA: LEMBRETES (ALTURA TOTAL) ---
         reminders: { 
             width: sidebarWidth - 20, 
-            height: sidebarWidgetHeight, 
-            x: mainContentWidth + 10, 
-            y: 10 
+            height: h - 40, // Altura total menos margens
+            x: 20, 
+            y: 20 
         },
 
-        // 2. Clima: Baixo Direito (Metade de baixo)
+        // --- COLUNA DIREITA: TEMPO (ALTURA TOTAL) ---
         weather: { 
             width: sidebarWidth - 20, 
-            height: sidebarWidgetHeight, 
-            x: mainContentWidth + 10, 
-            y: (h / 2) + 5
+            height: h - 40, 
+            x: w - sidebarWidth + 10, 
+            y: 20
         },
 
-        // --- COLUNA ESQUERDA (ÁREA PRINCIPAL) ---
+        // --- CENTRO ---
 
-        // 3. Relógio: Canto Superior Esquerdo
-        clock: { ...prev.clock, width: Math.min(300, mainContentWidth * 0.4), x: 40, y: 40 },
+        // 1. Relógio: Centralizado no topo
+        clock: { 
+            ...prev.clock, 
+            width: Math.min(300, centerWidth * 0.4), 
+            x: (w / 2) - (Math.min(300, centerWidth * 0.4) / 2), 
+            y: 30 
+        },
         
-        // 4. Data (Hoje): Centralizado na área principal restante
+        // 2. Data (Hoje): Centralizado verticalmente no espaço do meio
         date: { 
-            width: mainContentWidth * 0.7, 
-            height: h * 0.5, 
-            x: (mainContentWidth / 2) - ((mainContentWidth * 0.7) / 2), 
-            y: (h / 2) - ((h * 0.5) / 2) 
+            width: centerWidth, 
+            height: h * 0.4, 
+            x: centerStart, 
+            y: (h / 2) - ((h * 0.4) / 2) 
         }, 
         
-        // 5. Ontem: Canto Inferior Esquerdo
-        prev: { ...prev.prev, x: 40, y: h - prev.prev.height - 40 },
+        // 3. Ontem: Canto Inferior Esquerdo (dentro da área central)
+        prev: { 
+            ...prev.prev, 
+            x: centerStart, 
+            y: h - prev.prev.height - 40 
+        },
         
-        // 6. Amanhã: Canto Inferior Direito DA ÁREA PRINCIPAL (antes da barra lateral)
+        // 4. Amanhã: Canto Inferior Direito (dentro da área central)
         next: { 
             ...prev.next, 
-            x: mainContentWidth - prev.next.width - 20, 
+            x: centerStart + centerWidth - prev.next.width, 
             y: h - prev.next.height - 40 
         }
     }));
@@ -517,54 +525,57 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE LEMBRETES (COLUNA DIREITA - TOPO) */}
+        {/* WIDGET DE LEMBRETES (COLUNA ESQUERDA - ALTURA TOTAL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.reminders.width} height={widgets.reminders.height} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}
             >
-                <div className="w-full h-full bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden relative flex flex-col p-4">
-                    <div className="flex items-center gap-2 text-yellow-400 mb-2 shrink-0">
-                        <Bell size={24} />
-                        <span className="text-sm font-bold uppercase tracking-widest">Lembretes</span>
+                <div className="w-full h-full bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden relative flex flex-col p-6 shadow-2xl">
+                    <div className="flex items-center gap-3 text-yellow-400 mb-4 shrink-0 border-b border-white/10 pb-4">
+                        <Bell size={28} />
+                        <span className="text-lg font-bold uppercase tracking-[0.2em]">Lembretes</span>
                     </div>
-                    <div className="h-px w-full bg-white/10 mb-4"></div>
                     
-                    <div className="flex-1 overflow-hidden relative w-full">
+                    <div className="flex-1 overflow-hidden relative w-full mask-linear-gradient">
+                        {/* Escada Rolante de Lembretes */}
                         {allReminders.length > 0 ? (
-                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-4">
-                                {[...allReminders, ...allReminders].map((reminder, idx) => (
-                                    <div key={`${reminder.id}-${idx}`} className="mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                                        <p className="text-xs font-bold uppercase text-white/50 mb-1 flex justify-between">
+                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-6">
+                                {/* Duplicando lista para loop infinito perfeito */}
+                                {[...allReminders, ...allReminders, ...allReminders].map((reminder, idx) => (
+                                    <div key={`${reminder.id}-${idx}`} className="bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm relative overflow-hidden group">
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${reminder.type === 'alert' ? 'bg-red-500' : reminder.type === 'action' ? 'bg-blue-500' : 'bg-white/20'}`}></div>
+                                        <p className="text-xs font-bold uppercase text-white/50 mb-2 flex justify-between pl-3">
                                             <span>{reminder.time}</span>
-                                            <span className={reminder.type === 'alert' ? 'text-red-400' : 'text-blue-300'}>
-                                                {reminder.type === 'alert' ? 'Urgente' : 'Lembrete'}
+                                            <span className={reminder.type === 'alert' ? 'text-red-400' : reminder.type === 'action' ? 'text-blue-300' : 'text-gray-400'}>
+                                                {reminder.type === 'alert' ? 'Urgente' : reminder.type === 'action' ? 'Tarefa' : 'Info'}
                                             </span>
                                         </p>
-                                        <p className="text-lg font-medium leading-snug">{reminder.text}</p>
+                                        <p className="text-xl font-medium leading-tight pl-3">{reminder.text}</p>
                                     </div>
                                 ))}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-white/30">
-                                <p className="text-lg italic">Sem lembretes.</p>
+                                <p className="text-xl italic">Sem lembretes hoje.</p>
                             </div>
                         )}
                     </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE CLIMA (COLUNA DIREITA - BAIXO) */}
+        {/* WIDGET DE CLIMA (COLUNA DIREITA - ALTURA TOTAL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setWeather({...weather, daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }})}>
             <ResizableWidget 
                 width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onPositionChange={(x, y) => updateWidget('weather', { x, y })}
             >
             <div className="flex flex-col items-end w-full h-full">
-                <div className="absolute top-2 right-2 z-50">
-                    <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                        {wakeLockActive ? <Lock size={12} /> : <Unlock size={12}/>}
+                <div className="absolute top-4 right-4 z-50">
+                    <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-3 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
+                        {wakeLockActive ? <Lock size={14} /> : <Unlock size={14}/>}
                     </button>
                 </div>
                 <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
@@ -572,34 +583,36 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE DATA (ÁREA PRINCIPAL) */}
+        {/* WIDGET DE DATA (CENTRO) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onPositionChange={(x, y) => updateWidget('date', { x, y })}
             >
                 <div className="flex flex-col items-center w-full h-full justify-center">
-                    <div className="text-center drop-shadow-2xl">
-                        <span className="block text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-6">HOJE</span>
-                        <span className="block text-[20vw] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                        <span className="block text-[8vw] font-light capitalize mt-8 opacity-80 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                    <div className="text-center drop-shadow-2xl scale-90 lg:scale-100">
+                        <span className="block text-6xl lg:text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-4 opacity-80">HOJE</span>
+                        <span className="block text-[15rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
+                        <span className="block text-5xl lg:text-7xl font-light capitalize mt-6 opacity-60 pointer-events-none">{today.weekday.split('-')[0]}</span>
                     </div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
 
+        {/* ONTEM (CENTRO - ESQUERDA INFERIOR) */}
         <ResizableWidget 
             width={widgets.prev.width} height={widgets.prev.height} onResize={(w, h) => updateWidget('prev', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onPositionChange={(x, y) => updateWidget('prev', { x, y })}
         >
-              <div className="flex items-center gap-4 group w-full h-full"><ArrowLeft className="text-white w-16 h-16 opacity-50 shrink-0" /> <div className="text-left drop-shadow-lg"><span className="text-lg block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span><div className="leading-none"><span className="text-6xl font-bold text-white block">{yesterday.day}</span><span className="text-xl font-light text-white/70 uppercase">{yesterday.month}</span></div></div></div>
+              <div className="flex items-center gap-4 group w-full h-full"><ArrowLeft className="text-white w-12 h-12 opacity-30 shrink-0" /> <div className="text-left drop-shadow-lg"><span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span><div className="leading-none"><span className="text-5xl font-bold text-white block">{yesterday.day}</span><span className="text-lg font-light text-white/50 uppercase">{yesterday.month}</span></div></div></div>
         </ResizableWidget>
 
+        {/* AMANHÃ (CENTRO - DIREITA INFERIOR) */}
         <ResizableWidget 
             width={widgets.next.width} height={widgets.next.height} onResize={(w, h) => updateWidget('next', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onPositionChange={(x, y) => updateWidget('next', { x, y })}
         >
-              <div className="flex items-center gap-4 text-right group w-full h-full justify-end"><div className="text-right drop-shadow-lg"><span className="text-lg block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span><div className="leading-none"><span className="text-6xl font-bold text-white block">{tomorrow.day}</span><span className="text-xl font-light text-white/70 uppercase">{tomorrow.month}</span></div></div> <ArrowRight className="text-white w-16 h-16 opacity-50 shrink-0" /></div>
+              <div className="flex items-center gap-4 text-right group w-full h-full justify-end"><div className="text-right drop-shadow-lg"><span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span><div className="leading-none"><span className="text-5xl font-bold text-white block">{tomorrow.day}</span><span className="text-lg font-light text-white/50 uppercase">{tomorrow.month}</span></div></div> <ArrowRight className="text-white w-12 h-12 opacity-30 shrink-0" /></div>
         </ResizableWidget>
       </section>
 
