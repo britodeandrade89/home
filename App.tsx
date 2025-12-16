@@ -59,12 +59,12 @@ const App = () => {
 
   // Widget Positions & Sizes
   const [widgets, setWidgets] = useState({
-    clock: { width: 300, height: 150, x: 40, y: 40 },
-    reminders: { width: 300, height: 800, x: 0, y: 0 }, 
-    weather: { width: 300, height: 800, x: 0, y: 0 }, 
-    date: { width: 600, height: 400, x: 0, y: 0 }, 
-    prev: { width: 250, height: 150, x: 0, y: 0 },
-    next: { width: 250, height: 150, x: 0, y: 0 },
+    clock: { width: 250, height: 120, x: 40, y: 40 },
+    reminders: { width: 220, height: 800, x: 0, y: 0 }, 
+    weather: { width: 220, height: 800, x: 0, y: 0 }, 
+    date: { width: 500, height: 350, x: 0, y: 0 }, 
+    prev: { width: 200, height: 100, x: 0, y: 0 },
+    next: { width: 200, height: 100, x: 0, y: 0 },
   });
 
   // Refs
@@ -262,64 +262,52 @@ const App = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     
-    // DEFINIÇÃO DO LAYOUT EM 3 COLUNAS
+    // Configuração para colunas "fininhas" se a tela permitir, ou proporcionais
+    const sidebarWidth = Math.max(200, Math.min(320, w * 0.2)); 
     
-    // Largura das colunas laterais (aprox 20-25% da tela cada)
-    const sidebarWidth = Math.max(300, Math.min(400, w * 0.22)); 
-    
-    // Espaço central restante
-    const centerStart = sidebarWidth + 20; // Margem
-    const centerWidth = w - (sidebarWidth * 2) - 40; // Margens
+    const centerStart = sidebarWidth + 10;
+    const centerWidth = w - (sidebarWidth * 2) - 20;
 
     setWidgets(prev => ({
         ...prev,
-        
-        // --- COLUNA ESQUERDA: LEMBRETES (ALTURA TOTAL) ---
+        // Lembretes: Cantinho Esquerdo, fino
         reminders: { 
-            width: sidebarWidth - 20, 
-            height: h - 40, // Altura total menos margens
-            x: 20, 
-            y: 20 
+            width: sidebarWidth - 10, 
+            height: h - 20, 
+            x: 10, 
+            y: 10 
         },
-
-        // --- COLUNA DIREITA: TEMPO (ALTURA TOTAL) ---
+        // Clima: Cantinho Direito, fino
         weather: { 
-            width: sidebarWidth - 20, 
-            height: h - 40, 
-            x: w - sidebarWidth + 10, 
-            y: 20
+            width: sidebarWidth - 10, 
+            height: h - 20, 
+            x: w - sidebarWidth + 5, 
+            y: 10
         },
-
-        // --- CENTRO ---
-
-        // 1. Relógio: Centralizado no topo
+        // Relógio: Topo Centro (Reduzido)
         clock: { 
             ...prev.clock, 
-            width: Math.min(300, centerWidth * 0.4), 
-            x: (w / 2) - (Math.min(300, centerWidth * 0.4) / 2), 
-            y: 30 
+            width: Math.min(250, centerWidth * 0.4), 
+            x: (w / 2) - (Math.min(250, centerWidth * 0.4) / 2), 
+            y: 20 
         },
-        
-        // 2. Data (Hoje): Centralizado verticalmente no espaço do meio
+        // Data: Centro
         date: { 
             width: centerWidth, 
             height: h * 0.4, 
             x: centerStart, 
             y: (h / 2) - ((h * 0.4) / 2) 
         }, 
-        
-        // 3. Ontem: Canto Inferior Esquerdo (dentro da área central)
+        // Navegação (Ontem/Amanhã)
         prev: { 
             ...prev.prev, 
             x: centerStart, 
-            y: h - prev.prev.height - 40 
+            y: h - prev.prev.height - 20 
         },
-        
-        // 4. Amanhã: Canto Inferior Direito (dentro da área central)
         next: { 
             ...prev.next, 
             x: centerStart + centerWidth - prev.next.width, 
-            y: h - prev.next.height - 40 
+            y: h - prev.next.height - 20 
         }
     }));
   }, []);
@@ -382,7 +370,6 @@ const App = () => {
     };
   }, [startWakeWordListener]);
 
-  // --- HELPERS ---
   const getDateInfo = (d: Date) => ({
     day: d.getDate(),
     weekday: new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(d),
@@ -419,33 +406,16 @@ const App = () => {
        let imageId = ''; 
        let overlayColor = ''; 
 
-       if (code >= 95) { 
-           imageId = '1605727216801-e27ce1d0cc28';
-           overlayColor = 'rgba(20, 0, 30, 0.6)'; 
-       }
-       else if (code >= 51) { 
-           imageId = '1515694346937-94d85e41e6f0'; 
-           overlayColor = isNight ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 10, 30, 0.4)'; 
-       }
+       if (code >= 95) { imageId = '1605727216801-e27ce1d0cc28'; overlayColor = 'rgba(20, 0, 30, 0.6)'; }
+       else if (code >= 51) { imageId = '1515694346937-94d85e41e6f0'; overlayColor = isNight ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 10, 30, 0.4)'; }
        else if (code >= 2) { 
-           if (isNight) {
-               imageId = '1536746803623-cef8708094dd';
-               overlayColor = 'rgba(0, 0, 0, 0.6)';
-           } else {
-               imageId = '1534088568595-a066f410bcda';
-               overlayColor = 'rgba(0, 0, 0, 0.2)';
-           }
+           if (isNight) { imageId = '1536746803623-cef8708094dd'; overlayColor = 'rgba(0, 0, 0, 0.6)'; } 
+           else { imageId = '1534088568595-a066f410bcda'; overlayColor = 'rgba(0, 0, 0, 0.2)'; }
        }
        else {
-           if (isNight) {
-               imageId = '1470252649378-9c2974240315'; 
-               overlayColor = 'rgba(0, 10, 40, 0.5)';
-           } else {
-               imageId = '1507525428034-b723cf961d3e'; 
-               overlayColor = 'rgba(0, 0, 0, 0.1)';
-           }
+           if (isNight) { imageId = '1470252649378-9c2974240315'; overlayColor = 'rgba(0, 10, 40, 0.5)'; } 
+           else { imageId = '1507525428034-b723cf961d3e'; overlayColor = 'rgba(0, 0, 0, 0.1)'; }
        }
-
        const finalUrl = `https://images.unsplash.com/photo-${imageId}?q=80&w=1920&auto=format&fit=crop`;
        return { 
          backgroundColor: '#1a1a1a',
@@ -457,19 +427,9 @@ const App = () => {
   const InstallPromptModal = () => (
      <div className="absolute top-8 right-8 z-[200] animate-fade-in flex flex-col items-end pointer-events-auto">
         <div className="bg-yellow-500 text-black p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-sm border-2 border-yellow-300">
-           <div className="bg-black/10 p-2 rounded-xl">
-             <Smartphone size={24}/>
-           </div>
-           <div>
-              <h3 className="font-bold text-lg leading-none mb-1">Instalar Aplicativo</h3>
-              <p className="text-xs font-semibold opacity-70">Adicione à tela inicial para melhor experiência.</p>
-           </div>
-           <button 
-             onClick={handleInstallApp}
-             className="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold hover:scale-105 transition-transform"
-           >
-             Instalar
-           </button>
+           <div className="bg-black/10 p-2 rounded-xl"><Smartphone size={24}/></div>
+           <div><h3 className="font-bold text-lg leading-none mb-1">Instalar Aplicativo</h3><p className="text-xs font-semibold opacity-70">Adicione à tela inicial.</p></div>
+           <button onClick={handleInstallApp} className="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold hover:scale-105 transition-transform">Instalar</button>
            <button onClick={(e) => { e.stopPropagation(); setShowInstallModal(false); }} className="p-1 hover:bg-black/10 rounded-full"><Lock size={14}/></button>
         </div>
      </div>
@@ -478,21 +438,10 @@ const App = () => {
   if (!hasStarted) {
     return (
       <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white cursor-pointer" onClick={handleStartDashboard}>
-        <div className="w-20 h-20 rounded-full bg-yellow-500 animate-pulse flex items-center justify-center mb-8">
-          <Power size={40} className="text-black" />
-        </div>
+        <div className="w-20 h-20 rounded-full bg-yellow-500 animate-pulse flex items-center justify-center mb-8"><Power size={40} className="text-black" /></div>
         <h1 className="text-4xl font-bold uppercase tracking-[0.3em] mb-4 text-center px-4">Smart Home</h1>
         <p className="text-xl opacity-70 mb-8 animate-bounce">Toque para Iniciar</p>
-        
-        {showInstallModal && (
-            <button 
-                onClick={handleInstallApp}
-                className="mt-8 bg-white/10 border border-white/20 px-6 py-3 rounded-full flex items-center gap-3 hover:bg-white/20 transition-all text-yellow-400"
-            >
-                <Smartphone size={20} /> 
-                <span className="font-bold uppercase tracking-wider text-sm">Instalar App</span>
-            </button>
-        )}
+        {showInstallModal && <button onClick={handleInstallApp} className="mt-8 bg-white/10 border border-white/20 px-6 py-3 rounded-full flex items-center gap-3 hover:bg-white/20 transition-all text-yellow-400"><Smartphone size={20} /><span className="font-bold uppercase tracking-wider text-sm">Instalar App</span></button>}
       </div>
     );
   }
@@ -507,9 +456,7 @@ const App = () => {
       {(isCommandMode || isProcessingAI || newsSearchMode) && (
          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 bg-black/80 px-6 py-3 rounded-full border border-green-500 flex items-center gap-3 animate-fade-in shadow-2xl pointer-events-none">
             <div className={`w-3 h-3 bg-green-500 rounded-full ${isProcessingAI ? 'animate-bounce' : 'animate-ping'}`} />
-            <span className="text-lg font-bold uppercase tracking-widest text-green-400">
-              {isProcessingAI ? "Processando..." : "Ouvindo..."}
-            </span>
+            <span className="text-lg font-bold uppercase tracking-widest text-green-400">{isProcessingAI ? "Processando..." : "Ouvindo..."}</span>
          </div>
       )}
 
@@ -521,112 +468,98 @@ const App = () => {
                 width={widgets.clock.width} height={widgets.clock.height} onResize={(w, h) => updateWidget('clock', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onPositionChange={(x, y) => updateWidget('clock', { x, y })}
             >
-                <ClockWidget currentTime={currentTime} greeting={greeting} />
+                <ClockWidget currentTime={currentTime} greeting={greeting} width={widgets.clock.width} />
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE LEMBRETES (COLUNA ESQUERDA - ALTURA TOTAL) */}
+        {/* WIDGET DE LEMBRETES (RESPONSIVO E ESCALÁVEL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.reminders.width} height={widgets.reminders.height} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}
             >
-                <div className="w-full h-full bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden relative flex flex-col p-6 shadow-2xl">
-                    <div className="flex items-center gap-3 text-yellow-400 mb-4 shrink-0 border-b border-white/10 pb-4">
-                        <Bell size={28} />
-                        <span className="text-lg font-bold uppercase tracking-[0.2em]">Lembretes</span>
+                <div className={`w-full h-full bg-black/40 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden relative flex flex-col shadow-2xl transition-all duration-300 ${widgets.reminders.width < 250 ? 'p-3' : 'p-6'}`}>
+                    <div className="flex items-center gap-2 text-yellow-400 mb-2 shrink-0 border-b border-white/10 pb-2">
+                        <Bell size={widgets.reminders.width < 250 ? 20 : 28} />
+                        <span className={`font-bold uppercase ${widgets.reminders.width < 250 ? 'text-xs tracking-wider' : 'text-lg tracking-[0.2em]'}`}>Lembretes</span>
                     </div>
                     
                     <div className="flex-1 overflow-hidden relative w-full mask-linear-gradient">
-                        {/* Escada Rolante de Lembretes */}
                         {allReminders.length > 0 ? (
-                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-6">
-                                {/* Duplicando lista para loop infinito perfeito */}
+                            <div className="w-full animate-vertical-scroll hover:pause-on-hover space-y-4">
                                 {[...allReminders, ...allReminders, ...allReminders].map((reminder, idx) => (
-                                    <div key={`${reminder.id}-${idx}`} className="bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm relative overflow-hidden group">
+                                    <div key={`${reminder.id}-${idx}`} className={`bg-white/5 rounded-2xl border border-white/5 backdrop-blur-sm relative overflow-hidden group ${widgets.reminders.width < 250 ? 'p-2' : 'p-4'}`}>
                                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${reminder.type === 'alert' ? 'bg-red-500' : reminder.type === 'action' ? 'bg-blue-500' : 'bg-white/20'}`}></div>
-                                        <p className="text-xs font-bold uppercase text-white/50 mb-2 flex justify-between pl-3">
+                                        <div className={`flex justify-between pl-2 mb-1 opacity-60 font-bold uppercase ${widgets.reminders.width < 250 ? 'text-[8px] flex-col' : 'text-xs'}`}>
                                             <span>{reminder.time}</span>
                                             <span className={reminder.type === 'alert' ? 'text-red-400' : reminder.type === 'action' ? 'text-blue-300' : 'text-gray-400'}>
                                                 {reminder.type === 'alert' ? 'Urgente' : reminder.type === 'action' ? 'Tarefa' : 'Info'}
                                             </span>
-                                        </p>
-                                        <p className="text-xl font-medium leading-tight pl-3">{reminder.text}</p>
+                                        </div>
+                                        <p className={`font-medium leading-tight pl-2 text-white ${widgets.reminders.width < 250 ? 'text-sm' : 'text-xl'}`}>{reminder.text}</p>
                                     </div>
                                 ))}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-white/30">
-                                <p className="text-xl italic">Sem lembretes hoje.</p>
+                                <p className="text-sm italic">Vazio.</p>
                             </div>
                         )}
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE CLIMA (COLUNA DIREITA - ALTURA TOTAL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setWeather({...weather, daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }})}>
             <ResizableWidget 
                 width={widgets.weather.width} height={widgets.weather.height} onResize={(w, h) => updateWidget('weather', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onPositionChange={(x, y) => updateWidget('weather', { x, y })}
             >
-            <div className="flex flex-col items-end w-full h-full">
-                <div className="absolute top-4 right-4 z-50">
-                    <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-3 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                        {wakeLockActive ? <Lock size={14} /> : <Unlock size={14}/>}
-                    </button>
+                <div className="flex flex-col items-end w-full h-full relative">
+                    <div className="absolute top-2 right-2 z-50">
+                        <button onClick={(e) => { e.stopPropagation(); setWakeLockActive(!wakeLockActive); }} className={`p-2 rounded-full shadow-lg transition-colors flex items-center gap-2 ${wakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
+                            {wakeLockActive ? <Lock size={10} /> : <Unlock size={10}/>}
+                        </button>
+                    </div>
+                    <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} width={widgets.weather.width} />
                 </div>
-                <WeatherWidget weather={weather} locationName={locationName} beachReport={beachReport} />
-            </div>
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* WIDGET DE DATA (CENTRO) */}
+        {/* DATA (ESCALÁVEL) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
                 locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onPositionChange={(x, y) => updateWidget('date', { x, y })}
             >
-                <div className="flex flex-col items-center w-full h-full justify-center">
-                    <div className="text-center drop-shadow-2xl scale-90 lg:scale-100">
-                        <span className="block text-6xl lg:text-8xl tracking-[0.5em] text-yellow-300 font-bold mb-4 opacity-80">HOJE</span>
-                        <span className="block text-[15rem] leading-[0.8] font-bold tracking-tighter pointer-events-none">{today.day}</span>
-                        <span className="block text-5xl lg:text-7xl font-light capitalize mt-6 opacity-60 pointer-events-none">{today.weekday.split('-')[0]}</span>
+                <div className="flex flex-col items-center w-full h-full justify-center overflow-hidden">
+                    <div className="text-center drop-shadow-2xl flex flex-col items-center justify-center h-full w-full">
+                        <span className="block font-bold mb-0 opacity-80 text-yellow-300 tracking-[0.2em]" style={{ fontSize: `${Math.min(widgets.date.width / 6, 80)}px` }}>HOJE</span>
+                        <span className="block font-bold tracking-tighter pointer-events-none leading-none" style={{ fontSize: `${Math.min(widgets.date.width / 2.5, 240)}px` }}>{today.day}</span>
+                        <span className="block font-light capitalize mt-0 opacity-60 pointer-events-none leading-none" style={{ fontSize: `${Math.min(widgets.date.width / 8, 70)}px` }}>{today.weekday.split('-')[0]}</span>
                     </div>
                 </div>
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* ONTEM (CENTRO - ESQUERDA INFERIOR) */}
         <ResizableWidget 
             width={widgets.prev.width} height={widgets.prev.height} onResize={(w, h) => updateWidget('prev', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onPositionChange={(x, y) => updateWidget('prev', { x, y })}
         >
-              <div className="flex items-center gap-4 group w-full h-full"><ArrowLeft className="text-white w-12 h-12 opacity-30 shrink-0" /> <div className="text-left drop-shadow-lg"><span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Ontem</span><div className="leading-none"><span className="text-5xl font-bold text-white block">{yesterday.day}</span><span className="text-lg font-light text-white/50 uppercase">{yesterday.month}</span></div></div></div>
+              <div className="flex items-center gap-2 group w-full h-full overflow-hidden"><ArrowLeft className="text-white opacity-30 shrink-0" size={widgets.prev.width / 5} /> <div className="text-left drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.prev.width/15}px`}}>Ontem</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.prev.width/4}px`}}>{yesterday.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.prev.width/10}px`}}>{yesterday.month}</span></div></div></div>
         </ResizableWidget>
 
-        {/* AMANHÃ (CENTRO - DIREITA INFERIOR) */}
         <ResizableWidget 
             width={widgets.next.width} height={widgets.next.height} onResize={(w, h) => updateWidget('next', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onPositionChange={(x, y) => updateWidget('next', { x, y })}
         >
-              <div className="flex items-center gap-4 text-right group w-full h-full justify-end"><div className="text-right drop-shadow-lg"><span className="text-sm block uppercase tracking-wider text-yellow-400 font-bold mb-1">Amanhã</span><div className="leading-none"><span className="text-5xl font-bold text-white block">{tomorrow.day}</span><span className="text-lg font-light text-white/50 uppercase">{tomorrow.month}</span></div></div> <ArrowRight className="text-white w-12 h-12 opacity-30 shrink-0" /></div>
+              <div className="flex items-center gap-2 text-right group w-full h-full justify-end overflow-hidden"><div className="text-right drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.next.width/15}px`}}>Amanhã</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.next.width/4}px`}}>{tomorrow.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.next.width/10}px`}}>{tomorrow.month}</span></div></div> <ArrowRight className="text-white opacity-30 shrink-0" size={widgets.next.width / 5} /></div>
         </ResizableWidget>
       </section>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-4">
-        <button 
-          onClick={() => setIsChatOpen(true)}
-          className="p-4 rounded-full shadow-2xl transition-all duration-300 border bg-blue-600 border-blue-400 text-white hover:bg-blue-500 scale-100 active:scale-95"
-        >
-          <MessageSquare size={20} />
-        </button>
-
-        <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 rounded-full shadow-2xl transition-all duration-300 border ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20 hover:text-white/50' : 'bg-yellow-500 text-black border-yellow-400 scale-110'}`}>
-           {isLayoutLocked ? <Lock size={20}/> : <Edit3 size={20}/>}
-        </button>
+        <button onClick={() => setIsChatOpen(true)} className="p-4 rounded-full shadow-2xl transition-all duration-300 border bg-blue-600 border-blue-400 text-white hover:bg-blue-500 scale-100 active:scale-95"><MessageSquare size={20} /></button>
+        <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 rounded-full shadow-2xl transition-all duration-300 border ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20 hover:text-white/50' : 'bg-yellow-500 text-black border-yellow-400 scale-110'}`}>{isLayoutLocked ? <Lock size={20}/> : <Edit3 size={20}/>}</button>
       </div>
     </main>
   );
