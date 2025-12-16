@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, MessageSquare, Smartphone
+  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, Smartphone
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -534,9 +534,9 @@ const App = () => {
             >
                 <div className="flex flex-col items-center w-full h-full justify-center overflow-hidden">
                     <div className="text-center drop-shadow-2xl flex flex-col items-center justify-center h-full w-full">
-                        <span className="block font-bold mb-0 opacity-80 text-yellow-300 tracking-[0.2em]" style={{ fontSize: `${Math.min(widgets.date.width / 6, 80)}px` }}>HOJE</span>
-                        <span className="block font-bold tracking-tighter pointer-events-none leading-none" style={{ fontSize: `${Math.min(widgets.date.width / 2.5, 240)}px` }}>{today.day}</span>
-                        <span className="block font-light capitalize mt-0 opacity-60 pointer-events-none leading-none" style={{ fontSize: `${Math.min(widgets.date.width / 8, 70)}px` }}>{today.weekday.split('-')[0]}</span>
+                        <span className="block font-bold mb-0 opacity-80 text-yellow-300 tracking-[0.2em]" style={{ fontSize: `${Math.max(widgets.date.width / 6, 20)}px` }}>HOJE</span>
+                        <span className="block font-bold tracking-tighter pointer-events-none leading-none" style={{ fontSize: `${Math.max(widgets.date.width / 2.2, 50)}px` }}>{today.day}</span>
+                        <span className="block font-light capitalize mt-0 opacity-60 pointer-events-none leading-none" style={{ fontSize: `${Math.max(widgets.date.width / 7, 20)}px` }}>{today.weekday.split('-')[0]}</span>
                     </div>
                 </div>
             </ResizableWidget>
@@ -546,19 +546,18 @@ const App = () => {
             width={widgets.prev.width} height={widgets.prev.height} onResize={(w, h) => updateWidget('prev', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onPositionChange={(x, y) => updateWidget('prev', { x, y })}
         >
-              <div className="flex items-center gap-2 group w-full h-full overflow-hidden"><ArrowLeft className="text-white opacity-30 shrink-0" size={widgets.prev.width / 5} /> <div className="text-left drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.prev.width/15}px`}}>Ontem</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.prev.width/4}px`}}>{yesterday.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.prev.width/10}px`}}>{yesterday.month}</span></div></div></div>
+              <div className="flex items-center gap-2 group w-full h-full overflow-hidden"><ArrowLeft className="text-white opacity-30 shrink-0" size={widgets.prev.width / 5} /> <div className="text-left drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.prev.width/12}px`}}>Ontem</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.prev.width/4}px`}}>{yesterday.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.prev.width/10}px`}}>{yesterday.month}</span></div></div></div>
         </ResizableWidget>
 
         <ResizableWidget 
             width={widgets.next.width} height={widgets.next.height} onResize={(w, h) => updateWidget('next', { width: w, height: h })}
             locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onPositionChange={(x, y) => updateWidget('next', { x, y })}
         >
-              <div className="flex items-center gap-2 text-right group w-full h-full justify-end overflow-hidden"><div className="text-right drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.next.width/15}px`}}>Amanhã</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.next.width/4}px`}}>{tomorrow.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.next.width/10}px`}}>{tomorrow.month}</span></div></div> <ArrowRight className="text-white opacity-30 shrink-0" size={widgets.next.width / 5} /></div>
+              <div className="flex items-center gap-2 text-right group w-full h-full justify-end overflow-hidden"><div className="text-right drop-shadow-lg"><span className="block uppercase tracking-wider text-yellow-400 font-bold mb-0" style={{fontSize: `${widgets.next.width/12}px`}}>Amanhã</span><div className="leading-none"><span className="font-bold text-white block" style={{fontSize: `${widgets.next.width/4}px`}}>{tomorrow.day}</span><span className="font-light text-white/50 uppercase" style={{fontSize: `${widgets.next.width/10}px`}}>{tomorrow.month}</span></div></div> <ArrowRight className="text-white opacity-30 shrink-0" size={widgets.next.width / 5} /></div>
         </ResizableWidget>
       </section>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-4">
-        <button onClick={() => setIsChatOpen(true)} className="p-4 rounded-full shadow-2xl transition-all duration-300 border bg-blue-600 border-blue-400 text-white hover:bg-blue-500 scale-100 active:scale-95"><MessageSquare size={20} /></button>
         <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 rounded-full shadow-2xl transition-all duration-300 border ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20 hover:text-white/50' : 'bg-yellow-500 text-black border-yellow-400 scale-110'}`}>{isLayoutLocked ? <Lock size={20}/> : <Edit3 size={20}/>}</button>
       </div>
     </main>

@@ -148,29 +148,17 @@ export const generateNewsReport = async (headline: string): Promise<string> => {
 export const generateBeachReport = async (weatherData: any, locationName: string): Promise<any> => {
   try {
     const prompt = `
-      Você é um especialista local em Maricá, RJ. Analise os dados do tempo: 
-      Temp: ${weatherData.temperature}°C, Vento: ${weatherData.wind_speed}km/h, Chuva: ${weatherData.precipitation_probability}%.
+      Você é um salva-vidas em ${locationName}. 
+      Dados: Temp ${weatherData.temperature}°C, Vento ${weatherData.wind_speed}km/h.
       
-      Gere um relatório JSON SOBRE as condições das praias (Ponta Negra, Barra de Maricá, Itaipuaçu).
-      SEJA EXTREMAMENTE SUCINTO. Frases curtas.
+      Retorne um JSON simples com condições da praia.
+      Campos obrigatórios:
+      - swimCondition (ex: Boa, Regular, Perigosa)
+      - waterTemp (ex: 22°C)
+      - waves (ex: Calmo, Agitado)
+      - bestBeach (Nome da melhor praia hoje)
       
-      1. Avalie: "Própria p/ banho" (Sim/Não/Cuidado).
-      2. Estime temperatura da água.
-      3. Chance de "Lagomar".
-      4. Indique a MELHOR praia.
-      5. Gere link Google Maps.
-      
-      Retorne JSON:
-      {
-        "swimCondition": "Boa" | "Perigosa" | "Regular",
-        "waterTemp": "XX°C",
-        "waves": "Calmo" | "Agitado" | "Ressaca",
-        "lagomarProb": "Baixa" | "Média" | "Alta",
-        "bestBeach": "Nome da Praia",
-        "reason": "Motivo curto (max 10 palavras)",
-        "routeLink": "https://www.google.com/maps/dir/?api=1&destination=...",
-        "windComment": "Comentário curto (max 5 palavras)"
-      }
+      Não use formatação markdown. Apenas JSON puro.
     `;
 
     const response = await ai.models.generateContent({
@@ -184,23 +172,35 @@ export const generateBeachReport = async (weatherData: any, locationName: string
              swimCondition: { type: Type.STRING },
              waterTemp: { type: Type.STRING },
              waves: { type: Type.STRING },
-             lagomarProb: { type: Type.STRING },
-             bestBeach: { type: Type.STRING },
-             reason: { type: Type.STRING },
-             routeLink: { type: Type.STRING },
-             windComment: { type: Type.STRING }
+             bestBeach: { type: Type.STRING }
           }
         },
-        maxOutputTokens: 8192, // Increased to max to prevent truncation
+        maxOutputTokens: 1000,
       }
     });
     
     const text = response.text || "{}";
     const cleanJson = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleanJson);
+    const parsed = JSON.parse(cleanJson);
+    
+    // Fallback values if fields are missing
+    return {
+        swimCondition: parsed.swimCondition || "Analisando...",
+        waterTemp: parsed.waterTemp || "--",
+        waves: parsed.waves || "--",
+        bestBeach: parsed.bestBeach || locationName,
+        lagomarProb: "Baixa" 
+    };
   } catch (e) {
     console.error("Beach report failed", e);
-    return null;
+    // Return a visible fallback so the UI doesn't look broken
+    return {
+        swimCondition: "Indisponível",
+        waterTemp: "--",
+        waves: "--",
+        bestBeach: locationName,
+        lagomarProb: "--"
+    };
   }
 };
 
