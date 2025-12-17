@@ -526,7 +526,7 @@ const App = () => {
             </ResizableWidget>
         </ErrorBoundary>
 
-        {/* DATA (ESCALÁVEL) */}
+        {/* DATA (ESCALÁVEL - REVISADO) */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
             <ResizableWidget 
                 width={widgets.date.width} height={widgets.date.height} onResize={(w, h) => updateWidget('date', { width: w, height: h })}
@@ -534,9 +534,14 @@ const App = () => {
             >
                 <div className="flex flex-col items-center w-full h-full justify-center overflow-hidden">
                     <div className="text-center drop-shadow-2xl flex flex-col items-center justify-center h-full w-full">
-                        <span className="block font-bold mb-0 opacity-80 text-yellow-300 tracking-[0.2em]" style={{ fontSize: `${Math.max(widgets.date.width / 6, 20)}px` }}>HOJE</span>
-                        <span className="block font-bold tracking-tighter pointer-events-none leading-none" style={{ fontSize: `${Math.max(widgets.date.width / 2.2, 50)}px` }}>{today.day}</span>
-                        <span className="block font-light capitalize mt-0 opacity-60 pointer-events-none leading-none" style={{ fontSize: `${Math.max(widgets.date.width / 7, 20)}px` }}>{today.weekday.split('-')[0]}</span>
+                        {/* HOJE no topo */}
+                        <span className="block font-bold mb-0 opacity-80 text-yellow-300 tracking-[0.2em] leading-none" style={{ fontSize: `${Math.max(widgets.date.width / 10, 16)}px` }}>HOJE</span>
+                        
+                        {/* Número centralizado grande */}
+                        <span className="block font-bold tracking-tighter pointer-events-none leading-none my-2" style={{ fontSize: `${Math.max(widgets.date.width / 2.5, 60)}px` }}>{today.day}</span>
+                        
+                        {/* Dia da semana por extenso embaixo */}
+                        <span className="block font-light uppercase mt-0 opacity-80 pointer-events-none leading-none tracking-widest text-blue-200" style={{ fontSize: `${Math.max(widgets.date.width / 12, 14)}px` }}>{today.weekday}</span>
                     </div>
                 </div>
             </ResizableWidget>
