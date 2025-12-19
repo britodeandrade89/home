@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Bell, Activity } from 'lucide-react';
+import { Plus, Bell, Activity, X } from 'lucide-react';
 import ReminderItem from './ReminderItem';
 import { Reminder } from '../types';
 
@@ -23,48 +23,49 @@ const RemindersWidget: React.FC<RemindersWidgetProps> = ({ reminders, onAdd, onD
   };
 
   return (
-    <div className="w-[350px] bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-2xl flex flex-col max-h-[400px]">
+    <div className="w-full h-full bg-black/50 backdrop-blur-2xl border-2 border-white/10 rounded-[2.5rem] p-6 shadow-2xl flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-        <div className="flex items-center gap-2 text-yellow-400">
-          <Bell size={18} />
-          <span className="font-bold tracking-widest text-xs uppercase">Lembretes</span>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-3 text-yellow-400">
+          <Bell size={24} />
+          <span className="font-bold tracking-[0.3em] text-sm uppercase">Lembretes</span>
         </div>
         <button 
           onClick={() => setIsAdding(!isAdding)} 
-          className="bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-colors"
+          className={`p-2 rounded-full transition-all ${isAdding ? 'bg-red-500 text-white rotate-45' : 'bg-white/10 text-white hover:bg-white/20'}`}
         >
-          <Plus size={16} className="text-white" />
+          {isAdding ? <X size={20} /> : <Plus size={20} />}
         </button>
       </div>
 
       {/* Add Input */}
       {isAdding && (
-        <form onSubmit={handleSubmit} className="mb-3 animate-fade-in">
+        <form onSubmit={handleSubmit} className="mb-6 animate-fade-in shrink-0">
           <input 
             autoFocus
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Novo lembrete..."
-            className="w-full bg-black/50 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+            placeholder="O que lembrar?"
+            className="w-full bg-black/60 border-2 border-yellow-500/50 rounded-2xl px-5 py-4 text-lg text-white placeholder-white/30 focus:outline-none focus:border-yellow-500 shadow-xl"
           />
         </form>
       )}
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto hide-scrollbar space-y-2">
+      <div className="flex-1 overflow-y-auto hide-scrollbar space-y-4 pr-2">
         {reminders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-24 text-white/30">
-            <Activity size={24} className="mb-2 opacity-50"/>
-            <p className="text-xs">Sem lembretes.</p>
+          <div className="flex flex-col items-center justify-center h-full text-white/20">
+            <Activity size={48} className="mb-4 opacity-10 animate-pulse"/>
+            <p className="text-lg font-light italic">Nenhum compromisso.</p>
           </div>
         ) : (
           reminders.map((r, i) => (
-            <ReminderItem 
-              key={`${r.id}-${i}`} 
-              reminder={r} 
-              onDelete={onDelete} 
-            />
+            <div key={`${r.id}-${i}`} className="animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
+                <ReminderItem 
+                  reminder={r} 
+                  onDelete={onDelete} 
+                />
+            </div>
           ))
         )}
       </div>

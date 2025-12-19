@@ -20,26 +20,23 @@ const getWeatherIcon = (code: number) => {
 };
 
 const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport, width = 300 }) => {
-  const [currentSlide, setCurrentSlide] = useState(0); // 0: Metrics, 1: Beach, 2: Hourly, 3: Daily
-  const [subSlide, setSubSlide] = useState(0); // Rotação interna de cada categoria
+  const [currentSlide, setCurrentSlide] = useState(0); // 0: Métricas, 1: Praia, 2: Horário, 3: Diário
+  const [subSlide, setSubSlide] = useState(0);
 
   const tempSize = Math.max(width / 3, 48);
-  const hugeValueSize = Math.max(width / 4.5, 32);
-  const labelSize = Math.max(width / 12, 14);
-  const subLabelSize = Math.max(width / 20, 10);
+  const hugeValueSize = Math.max(width / 4, 40);
+  const labelSize = Math.max(width / 11, 16);
+  const subLabelSize = Math.max(width / 18, 12);
 
-  // Lógica de rotação a cada 5 segundos
   useEffect(() => {
     const interval = setInterval(() => {
       setSubSlide(prev => {
         const next = prev + 1;
-        
-        // Verifica limites de cada slide para pular para o próximo global
+        // Rotação Global
         if (currentSlide === 0 && next >= 4) { setCurrentSlide(1); return 0; }
         if (currentSlide === 1 && next >= (beachReport?.length || 1)) { setCurrentSlide(2); return 0; }
-        if (currentSlide === 2 && next >= 1) { setCurrentSlide(3); return 0; } // Hourly mostra tudo vertical ou 1 por 1? Vamos 1 por 1 vertical.
+        if (currentSlide === 2 && next >= 1) { setCurrentSlide(3); return 0; }
         if (currentSlide === 3 && next >= 5) { setCurrentSlide(0); return 0; }
-        
         return next;
       });
     }, 5000);
@@ -48,47 +45,57 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
 
   const renderHugeMetric = (label: string, value: string, unit: string, Icon: any, color: string) => (
     <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center">
-      <div className={`mb-4 ${color}`}><Icon size={width / 4} /></div>
-      <div className="uppercase opacity-60 font-bold tracking-widest mb-2" style={{ fontSize: `${labelSize}px` }}>{label}</div>
-      <div className="font-bold leading-none flex items-baseline gap-1" style={{ fontSize: `${hugeValueSize}px` }}>
-        {value}<span className="opacity-50 font-light" style={{ fontSize: `${hugeValueSize/2}px` }}>{unit}</span>
+      <div className={`mb-6 ${color}`}><Icon size={width / 3.5} /></div>
+      <div className="uppercase opacity-60 font-bold tracking-[0.2em] mb-3" style={{ fontSize: `${labelSize}px` }}>{label}</div>
+      <div className="font-bold leading-none flex items-baseline gap-1" style={{ fontSize: `${hugeValueSize * 1.2}px` }}>
+        {value}<span className="opacity-50 font-light" style={{ fontSize: `${hugeValueSize/1.5}px` }}>{unit}</span>
       </div>
     </div>
   );
 
   const renderHugeBeach = (beach: any) => (
-    <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-2">
-      <Waves size={width / 6} className="text-blue-400 mb-4" />
-      <div className="text-yellow-400 font-bold uppercase tracking-tighter mb-2" style={{ fontSize: `${labelSize * 1.2}px` }}>{beach.name}</div>
-      <div className={`font-bold mb-4 ${beach.condition === 'Perigosa' ? 'text-red-500' : 'text-green-400'}`} style={{ fontSize: `${labelSize}px` }}>
+    <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-4">
+      <Waves size={width / 5} className="text-blue-400 mb-6" />
+      <div className="text-yellow-400 font-bold uppercase tracking-tight mb-4" style={{ fontSize: `${labelSize * 1.3}px` }}>{beach.name}</div>
+      <div className={`font-bold mb-6 ${beach.condition === 'Perigosa' ? 'text-red-500' : 'text-green-400'}`} style={{ fontSize: `${labelSize}px` }}>
         {beach.condition}
       </div>
-      <div className="grid grid-cols-2 gap-8 w-full">
+      <div className="grid grid-cols-2 gap-10 w-full">
          <div>
-            <div className="opacity-50 uppercase" style={{ fontSize: `${subLabelSize}px` }}>Água</div>
-            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.5}px` }}>{beach.water}</div>
+            <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Água</div>
+            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.water}</div>
          </div>
          <div>
-            <div className="opacity-50 uppercase" style={{ fontSize: `${subLabelSize}px` }}>Ondas</div>
-            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.5}px` }}>{beach.waves}</div>
+            <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Ondas</div>
+            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.waves}</div>
          </div>
       </div>
     </div>
   );
 
   const renderVerticalHourly = () => {
+    // Cobertura total 24h: 0, 3, 6, 9, 12, 15, 18, 21
     const hourlyData = weather.hourly?.time
-      .map((t, i) => ({ time: t, temp: weather.hourly?.temperature_2m?.[i] ?? 0, code: weather.hourly?.weathercode?.[i] ?? 0 }))
+      .map((t, i) => ({ 
+        time: t, 
+        temp: weather.hourly?.temperature_2m?.[i] ?? 0, 
+        code: weather.hourly?.weathercode?.[i] ?? 0,
+        pop: weather.hourly?.precipitation_probability?.[i] ?? 0
+      }))
       .filter((_, i) => i % 3 === 0)
-      .slice(0, 5);
+      .slice(0, 8); // 8 slots = 24h
 
     return (
-      <div className="flex flex-col justify-between h-full py-4 animate-fade-in">
+      <div className="flex flex-col justify-around h-full py-2 animate-fade-in overflow-hidden">
+        <div className="text-center opacity-40 uppercase tracking-widest mb-2 font-bold" style={{ fontSize: `${subLabelSize}px` }}>Previsão 24h</div>
         {hourlyData?.map((item, i) => (
-          <div key={i} className="flex items-center justify-between border-b border-white/5 pb-2 last:border-0">
-            <span className="font-bold opacity-60" style={{ fontSize: `${labelSize}px` }}>{new Date(item.time).getHours()}h</span>
-            <span style={{ fontSize: `${labelSize * 1.5}px` }}>{getWeatherIcon(item.code)}</span>
-            <span className="font-bold text-white" style={{ fontSize: `${labelSize * 1.2}px` }}>{Math.round(item.temp)}°</span>
+          <div key={i} className="flex items-center justify-between border-b border-white/5 pb-1 last:border-0">
+            <span className="font-bold w-12" style={{ fontSize: `${labelSize * 0.7}px` }}>{new Date(item.time).getHours()}h</span>
+            <span style={{ fontSize: `${labelSize}px` }}>{getWeatherIcon(item.code)}</span>
+            <div className="flex items-center gap-2 text-blue-300 font-bold" style={{ fontSize: `${labelSize * 0.6}px` }}>
+              <CloudRain size={labelSize * 0.6} /> {item.pop}%
+            </div>
+            <span className="font-bold text-white text-right w-12" style={{ fontSize: `${labelSize * 0.8}px` }}>{Math.round(item.temp)}°</span>
           </div>
         ))}
       </div>
@@ -105,48 +112,47 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
     const rain = weather.daily?.precipitation_probability_max?.[index] ?? 0;
 
     return (
-      <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center">
-        <div className="text-yellow-400 font-bold uppercase mb-4" style={{ fontSize: `${labelSize}px` }}>{dayName}</div>
-        <div className="mb-4" style={{ fontSize: `${width / 3.5}px` }}>{getWeatherIcon(weather.daily?.weathercode?.[index] ?? 0)}</div>
-        <div className="flex gap-8 items-center mb-4">
-           <div className="flex flex-col">
-              <ArrowUp className="text-red-400 mx-auto" size={labelSize} />
-              <span className="font-bold" style={{ fontSize: `${hugeValueSize}px` }}>{max}°</span>
+      <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-4">
+        <div className="text-yellow-400 font-bold uppercase mb-6 tracking-[0.2em]" style={{ fontSize: `${labelSize}px` }}>{dayName}</div>
+        <div className="mb-6" style={{ fontSize: `${width / 3}px` }}>{getWeatherIcon(weather.daily?.weathercode?.[index] ?? 0)}</div>
+        
+        <div className="flex gap-12 items-center mb-6">
+           <div className="flex flex-col items-center">
+              <ArrowUp className="text-red-400 mb-2" size={labelSize} />
+              <span className="font-bold" style={{ fontSize: `${hugeValueSize * 1.1}px` }}>{max}°</span>
            </div>
-           <div className="flex flex-col">
-              <ArrowDown className="text-blue-400 mx-auto" size={labelSize} />
-              <span className="font-bold" style={{ fontSize: `${hugeValueSize}px` }}>{min}°</span>
+           <div className="flex flex-col items-center">
+              <ArrowDown className="text-blue-400 mb-2" size={labelSize} />
+              <span className="font-bold" style={{ fontSize: `${hugeValueSize * 1.1}px` }}>{min}°</span>
            </div>
         </div>
-        {rain > 0 && (
-          <div className="flex items-center gap-2 text-blue-300 font-bold" style={{ fontSize: `${labelSize}px` }}>
-            <CloudRain size={labelSize} /> {rain}% <span className="text-xs opacity-50">CHUVA</span>
-          </div>
-        )}
+
+        <div className="bg-blue-600/20 px-8 py-3 rounded-2xl flex items-center gap-4 text-blue-300 font-black border border-blue-500/30" style={{ fontSize: `${labelSize * 1.1}px` }}>
+          <CloudRain size={labelSize * 1.2} /> {rain}%
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="animate-float flex flex-col w-full h-full bg-black/60 backdrop-blur-3xl border-2 border-white/10 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden">
-       
+    <div className="animate-float flex flex-col w-full h-full bg-black/70 backdrop-blur-3xl border-2 border-white/10 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden">
        {/* HEADER FIXO */}
-       <div className="flex justify-between items-start mb-4 border-b border-white/10 pb-4">
+       <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-6 shrink-0">
           <div>
               <div className="font-bold leading-none tracking-tighter text-white" style={{ fontSize: `${tempSize}px` }}>
                  {Math.round(Number(weather.temperature))}°
               </div>
-              <div className="flex items-center gap-2 font-bold uppercase text-yellow-400 mt-2" style={{ fontSize: `${width/20}px` }}>
-                 <MapPin size={width/20} /> {locationName.split('-')[0]}
+              <div className="flex items-center gap-2 font-bold uppercase text-yellow-400 mt-2" style={{ fontSize: `${width/18}px` }}>
+                 <MapPin size={width/18} /> {locationName.split('-')[0]}
               </div>
           </div>
-          <div className="animate-pulse" style={{ fontSize: `${width/4}px` }}>
+          <div className="animate-pulse" style={{ fontSize: `${width/3.5}px` }}>
              {getWeatherIcon(weather.weathercode)}
           </div>
        </div>
 
        {/* ÁREA DE CONTEÚDO ROTATIVA */}
-       <div className="flex-1 overflow-hidden">
+       <div className="flex-1 overflow-hidden relative">
           {currentSlide === 0 && (
              subSlide === 0 ? renderHugeMetric("Vento", `${weather.wind_speed}`, "km/h", Wind, "text-blue-300") :
              subSlide === 1 ? renderHugeMetric("Chuva", `${weather.precipitation_probability}`, "%", CloudRain, "text-blue-400") :
@@ -155,16 +161,14 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
           )}
 
           {currentSlide === 1 && beachReport && renderHugeBeach(beachReport[subSlide % beachReport.length])}
-
           {currentSlide === 2 && renderVerticalHourly()}
-
           {currentSlide === 3 && renderHugeDaily(subSlide)}
        </div>
 
-       {/* INDICADOR DE POSIÇÃO NO RODAPÉ */}
-       <div className="flex gap-2 justify-center mt-4">
+       {/* INDICADOR */}
+       <div className="flex gap-3 justify-center mt-6 shrink-0">
           {[0, 1, 2, 3].map(i => (
-             <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${currentSlide === i ? 'w-8 bg-yellow-400' : 'w-2 bg-white/20'}`} />
+             <div key={i} className={`h-2 rounded-full transition-all duration-500 ${currentSlide === i ? 'w-12 bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]' : 'w-3 bg-white/10'}`} />
           ))}
        </div>
     </div>
