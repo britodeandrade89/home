@@ -13,6 +13,7 @@
         font-family: 'Oswald', sans-serif;
         background-color: #000;
         color: white;
+        overflow: hidden;
       }
       .hide-scrollbar::-webkit-scrollbar {
         display: none;
@@ -21,6 +22,57 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+      
+      /* Efeito de Chuva Escorrendo */
+      .rain-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity 2s;
+      }
+      .rain-active .rain-overlay { opacity: 0.4; }
+      .rain-drop {
+        position: absolute;
+        background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.4));
+        width: 2px;
+        height: 80px;
+        top: -100px;
+        animation: drop linear infinite;
+      }
+      @keyframes drop {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(110vh); }
+      }
+
+      /* Relâmpagos */
+      @keyframes lightning {
+        0%, 95%, 100% { opacity: 0; }
+        96% { opacity: 0.2; }
+        97% { opacity: 0; }
+        98% { opacity: 0.4; }
+        99% { opacity: 0; }
+      }
+      .storm-active::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: white;
+        z-index: 2;
+        pointer-events: none;
+        animation: lightning 8s infinite;
+      }
+
+      /* Brilho Solar */
+      @keyframes sun-glow {
+        0%, 100% { filter: saturate(1.2) brightness(1); }
+        50% { filter: saturate(1.5) brightness(1.1); }
+      }
+      .sun-active {
+        animation: sun-glow 10s ease-in-out infinite;
+      }
+
       @keyframes scroll-vertical {
         0% { transform: translateY(0); }
         100% { transform: translateY(-50%); }
@@ -31,57 +83,22 @@
       .pause-on-hover:hover .animate-vertical-scroll {
         animation-play-state: paused;
       }
-      @keyframes escalator {
-        0% { transform: translateY(100%); opacity: 0; }
-        5% { transform: translateY(0); opacity: 1; }
-        20% { transform: translateY(0); opacity: 1; }
-        25% { transform: translateY(-100%); opacity: 0; }
-        100% { transform: translateY(-100%); opacity: 0; }
-      }
-      .animate-escalator {
-        animation: escalator 8s linear infinite;
-      }
+      
       .animate-fade-in {
-        animation: fadeIn 0.5s ease-out;
+        animation: fadeIn 0.8s ease-out;
       }
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
       }
 
       /* Weather Animations */
       @keyframes float {
         0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-8px); }
+        50% { transform: translateY(-12px); }
       }
       .animate-float {
-        animation: float 6s ease-in-out infinite;
-      }
-      
-      @keyframes pulse-glow {
-        0%, 100% { filter: drop-shadow(0 0 5px rgba(253, 224, 71, 0.5)); transform: scale(1); }
-        50% { filter: drop-shadow(0 0 15px rgba(253, 224, 71, 0.8)); transform: scale(1.05); }
-      }
-      .animate-sun {
-        animation: pulse-glow 4s ease-in-out infinite;
-      }
-
-      @keyframes rain-fall {
-        0% { transform: translateY(-2px); opacity: 0.7; }
-        50% { opacity: 1; }
-        100% { transform: translateY(2px); opacity: 0.7; }
-      }
-      .animate-rain {
-        animation: rain-fall 2s linear infinite;
-      }
-
-      @keyframes thunder-flash {
-        0%, 100% { filter: brightness(1); }
-        5% { filter: brightness(2); }
-        10% { filter: brightness(1); }
-      }
-      .animate-storm {
-        animation: thunder-flash 5s infinite;
+        animation: float 8s ease-in-out infinite;
       }
     </style>
   <script type="importmap">
@@ -100,6 +117,19 @@
 </head>
   <body>
     <div id="root"></div>
+    <div id="weather-effects" class="rain-overlay"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      // Gerador de gotas de chuva dinâmico
+      const container = document.getElementById('weather-effects');
+      for(let i=0; i<100; i++) {
+        const drop = document.createElement('div');
+        drop.className = 'rain-drop';
+        drop.style.left = Math.random() * 100 + 'vw';
+        drop.style.animationDuration = (0.5 + Math.random() * 1.5) + 's';
+        drop.style.animationDelay = Math.random() * 2 + 's';
+        container.appendChild(drop);
+      }
+    </script>
   </body>
 </html>
