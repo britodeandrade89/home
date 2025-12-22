@@ -6,7 +6,7 @@ import {
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather'; 
-import { processVoiceCommandAI, generateNewsReport, generateBeachReport } from './services/gemini';
+import { processVoiceCommandAI, generateNewsReport, generateBeachReport, BEACH_FALLBACK } from './services/gemini';
 import { Reminder, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
@@ -30,7 +30,10 @@ function ErrorFallback({error, resetErrorBoundary}: any) {
 const App = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [beachReport, setBeachReport] = useState<any[]>([]);
+  
+  // INICIALIZAÇÃO CRÍTICA: Começa com o fallback importado para garantir que o widget tenha dados
+  const [beachReport, setBeachReport] = useState<any[]>(BEACH_FALLBACK);
+  
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hasStarted, setHasStarted] = useState(false);
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
@@ -119,8 +122,11 @@ const App = () => {
       if (data) {
         setWeather(data);
         // Praia (Gemini)
+        // Mesmo com fallback inicial, tentamos atualizar com dados frescos da IA
         const report = await generateBeachReport(data, 'Maricá');
-        setBeachReport(report);
+        if (report && report.length > 0) {
+          setBeachReport(report);
+        }
       }
     } catch (e) {
       console.error("Erro no ciclo de dados:", e);

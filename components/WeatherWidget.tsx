@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState } from 'react';
-import { Wind, Waves, MapPin, Droplets, ThermometerSun, CloudRain, Calendar, Clock, ArrowUp, ArrowDown } from 'lucide-react';
+import { Wind, Waves, MapPin, Droplets, ThermometerSun, CloudRain, ArrowUp, ArrowDown, ThumbsUp, AlertTriangle, Skull } from 'lucide-react';
 import { WeatherData } from '../types';
 
 interface WeatherWidgetProps {
@@ -20,7 +21,7 @@ const getWeatherIcon = (code: number) => {
 };
 
 const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport, width = 300 }) => {
-  const [currentSlide, setCurrentSlide] = useState(0); // 0: Métricas, 1: Praia, 2: Horário, 3: Diário
+  const [currentSlide, setCurrentSlide] = useState(1); // Começa mostrando PRAIA (Slide 1) para garantir visibilidade
   const [subSlide, setSubSlide] = useState(0);
 
   const tempSize = Math.max(width / 3, 48);
@@ -28,7 +29,6 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
   const labelSize = Math.max(width / 11, 16);
   const subLabelSize = Math.max(width / 18, 12);
 
-  // Verifica se há dados válidos para evitar erros de renderização
   const hasBeachData = Array.isArray(beachReport) && beachReport.length > 0;
   const hasHourlyData = weather.hourly && weather.hourly.time && weather.hourly.time.length > 0;
   const hasDailyData = weather.daily && weather.daily.time && weather.daily.time.length > 0;
@@ -38,40 +38,38 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
       setSubSlide(prev => {
         const next = prev + 1;
         
-        // Rotação Global Inteligente (pula slides sem dados)
+        // Lógica de Rotação: 
+        // 0: Métricas Gerais (Vento, Chuva)
+        // 1: Praias (Rotação entre as praias)
+        // 2: Previsão Horária
+        // 3: Previsão Diária
+
         if (currentSlide === 0 && next >= 4) { 
-          if (hasBeachData) { setCurrentSlide(1); return 0; }
-          if (hasHourlyData) { setCurrentSlide(2); return 0; }
-          if (hasDailyData) { setCurrentSlide(3); return 0; }
-          return 0;
+           setCurrentSlide(1); return 0; // Vai para praias
         }
 
         if (currentSlide === 1) {
-            // Se não tem dados ou chegou ao fim, vai pro próximo
+            // Fica nas praias até mostrar todas
             if (!hasBeachData || next >= beachReport.length) {
-                if (hasHourlyData) { setCurrentSlide(2); return 0; }
-                if (hasDailyData) { setCurrentSlide(3); return 0; }
-                setCurrentSlide(0); return 0;
+                setCurrentSlide(2); return 0;
             }
         }
 
         if (currentSlide === 2) {
-             // Previsão horária é um bloco único, fica por 1 ciclo de métrica (ex: 5-10s) e passa
              if (!hasHourlyData || next >= 1) { 
-                if (hasDailyData) { setCurrentSlide(3); return 0; }
-                setCurrentSlide(0); return 0;
+                setCurrentSlide(3); return 0;
              }
         }
 
         if (currentSlide === 3) {
-             if (!hasDailyData || next >= 5) { // Mostra 5 dias
+             if (!hasDailyData || next >= 5) {
                 setCurrentSlide(0); return 0;
              }
         }
         
         return next;
       });
-    }, 5000);
+    }, 6000); // 6 segundos por tela
     return () => clearInterval(interval);
   }, [currentSlide, beachReport, hasBeachData, hasHourlyData, hasDailyData]);
 
@@ -87,23 +85,56 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
 
   const renderHugeBeach = (beach: any) => {
     if (!beach) return null;
+
+    const isBest = beach.recommendation === "Melhor Opção";
+    const isDangerous = beach.condition === "Perigosa";
+
     return (
-        <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-4">
-        <Waves size={width / 5} className="text-blue-400 mb-6" />
-        <div className="text-yellow-400 font-bold uppercase tracking-tight mb-4" style={{ fontSize: `${labelSize * 1.3}px` }}>{beach.name}</div>
-        <div className={`font-bold mb-6 ${beach.condition === 'Perigosa' ? 'text-red-500' : 'text-green-400'}`} style={{ fontSize: `${labelSize}px` }}>
-            {beach.condition}
-        </div>
-        <div className="grid grid-cols-2 gap-10 w-full">
-            <div>
-                <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Água</div>
-                <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.water}</div>
+        <div className="flex flex-col items-center justify-between h-full animate-fade-in text-center p-2 relative">
+            
+            {/* BADGE DE RECOMENDAÇÃO */}
+            {isBest && (
+                <div className="absolute top-0 bg-yellow-400 text-black px-4 py-1 rounded-full font-bold uppercase tracking-wider text-sm shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse z-20">
+                    🏆 Melhor Escolha
+                </div>
+            )}
+            
+            {/* Ícone Principal */}
+            <div className="mt-8 mb-2">
+                {isDangerous ? (
+                    <Skull size={width / 4} className="text-red-500 opacity-80" />
+                ) : isBest ? (
+                    <ThumbsUp size={width / 4} className="text-green-400" />
+                ) : (
+                    <Waves size={width / 4} className="text-blue-400" />
+                )}
             </div>
+
+            {/* Nome e Condição */}
             <div>
-                <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Ondas</div>
-                <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.waves}</div>
+                <div className="text-white font-bold uppercase tracking-tight leading-none mb-1" style={{ fontSize: `${labelSize * 1.5}px` }}>{beach.name}</div>
+                <div className={`font-bold uppercase tracking-widest ${isDangerous ? 'text-red-500' : isBest ? 'text-green-400' : 'text-yellow-400'}`} style={{ fontSize: `${labelSize}px` }}>
+                    {beach.condition}
+                </div>
             </div>
-        </div>
+
+            {/* Grid de Informações */}
+            <div className="bg-white/5 rounded-2xl p-4 w-full grid grid-cols-2 gap-4 border border-white/10 mt-4">
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 text-cyan-300 mb-1">
+                        <ThermometerSun size={20} />
+                        <span className="uppercase text-[10px] font-bold">Água</span>
+                    </div>
+                    <span className="text-2xl font-bold text-white">{beach.water}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 text-blue-300 mb-1">
+                        <Waves size={20} />
+                        <span className="uppercase text-[10px] font-bold">Ondas</span>
+                    </div>
+                    <span className="text-2xl font-bold text-white">{beach.waves}</span>
+                </div>
+            </div>
         </div>
     );
   };
@@ -111,7 +142,6 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
   const renderVerticalHourly = () => {
     if (!hasHourlyData) return null;
     
-    // Cobertura total: 0, 3, 6, 9, 12, 15, 18, 21, 00(next)
     const hourlyData = weather.hourly!.time
       .map((t, i) => ({ 
         time: t, 

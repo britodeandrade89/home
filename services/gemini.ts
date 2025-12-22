@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 
-// Inicialização segura para evitar crash se process não estiver definido no browser
+// Inicialização segura
 const getAiClient = () => {
   let key = "";
   try {
@@ -35,25 +35,32 @@ export const getChatResponse = async (userMessage: string): Promise<string> => {
   }
 };
 
-const BEACH_FALLBACK = [
-  { name: "Barra de Maricá", condition: "Regular", water: "22°C", waves: "1.0m" },
-  { name: "Cordeirinho", condition: "Agitada", water: "21°C", waves: "1.5m" },
-  { name: "Itaipuaçu", condition: "Perigosa", water: "20°C", waves: "2.0m" },
-  { name: "Ponta Negra", condition: "Boa", water: "23°C", waves: "0.5m" }
+// DADOS DE SEGURANÇA (FALLBACK) - Garantem que sempre haja algo na tela
+export const BEACH_FALLBACK = [
+  { name: "Ponta Negra", condition: "Boa", water: "23°C", waves: "0.5m", recommendation: "Melhor Opção" },
+  { name: "Barra de Maricá", condition: "Regular", water: "21°C", waves: "1.2m", recommendation: "Atenção" },
+  { name: "Itaipuaçu", condition: "Perigosa", water: "20°C", waves: "2.0m", recommendation: "Evite Banho" },
+  { name: "Cordeirinho", condition: "Agitada", water: "22°C", waves: "1.5m", recommendation: "Cuidado" }
 ];
 
 export const generateBeachReport = async (weatherData: any, locationName: string): Promise<any[]> => {
   try {
     const prompt = `
-      Você é um especialista em praias de Maricá-RJ. 
-      Com base no clima: ${weatherData.temperature}°C, Vento ${weatherData.wind_speed}km/h.
+      Atue como um salva-vidas em Maricá-RJ.
+      Clima atual: ${weatherData.temperature}°C, Vento ${weatherData.wind_speed}km/h.
       
-      Retorne um ARRAY JSON de objetos com as condições para estas praias: Barra de Maricá, Cordeirinho, Itaipuaçu e Ponta Negra.
-      Campos por objeto:
-      - name (Nome da praia)
-      - condition (Boa, Regular, Perigosa)
-      - water (ex: 21°C)
-      - waves (ex: 0.5m)
+      Gere um JSON array para: Ponta Negra, Barra de Maricá, Itaipuaçu, Cordeirinho.
+      
+      Estrutura exata:
+      [
+        { 
+          "name": "Nome da Praia", 
+          "condition": "Boa" | "Regular" | "Perigosa", 
+          "water": "XX°C", 
+          "waves": "X.Xm",
+          "recommendation": "Melhor Opção" | "Cuidado" | "Evite Banho" (Escolha APENAS UMA praia como "Melhor Opção")
+        }
+      ]
     `;
 
     const response = await getAiClient().models.generateContent({
@@ -69,7 +76,8 @@ export const generateBeachReport = async (weatherData: any, locationName: string
                name: { type: Type.STRING },
                condition: { type: Type.STRING },
                water: { type: Type.STRING },
-               waves: { type: Type.STRING }
+               waves: { type: Type.STRING },
+               recommendation: { type: Type.STRING }
             }
           }
         },
@@ -78,10 +86,10 @@ export const generateBeachReport = async (weatherData: any, locationName: string
     
     const text = response.text;
     if (!text) return BEACH_FALLBACK;
-    return JSON.parse(text);
+    const data = JSON.parse(text);
+    return data.length > 0 ? data : BEACH_FALLBACK;
   } catch (e) {
     console.error("Beach report failed, using fallback", e);
-    // Retorna dados fictícios baseados no clima atual para não quebrar a UI
     return BEACH_FALLBACK;
   }
 };
