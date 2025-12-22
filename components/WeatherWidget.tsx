@@ -28,20 +28,52 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
   const labelSize = Math.max(width / 11, 16);
   const subLabelSize = Math.max(width / 18, 12);
 
+  // Verifica se há dados válidos para evitar erros de renderização
+  const hasBeachData = Array.isArray(beachReport) && beachReport.length > 0;
+  const hasHourlyData = weather.hourly && weather.hourly.time && weather.hourly.time.length > 0;
+  const hasDailyData = weather.daily && weather.daily.time && weather.daily.time.length > 0;
+
   useEffect(() => {
     const interval = setInterval(() => {
       setSubSlide(prev => {
         const next = prev + 1;
-        // Rotação Global
-        if (currentSlide === 0 && next >= 4) { setCurrentSlide(1); return 0; }
-        if (currentSlide === 1 && next >= (beachReport?.length || 1)) { setCurrentSlide(2); return 0; }
-        if (currentSlide === 2 && next >= 1) { setCurrentSlide(3); return 0; }
-        if (currentSlide === 3 && next >= 5) { setCurrentSlide(0); return 0; }
+        
+        // Rotação Global Inteligente (pula slides sem dados)
+        if (currentSlide === 0 && next >= 4) { 
+          if (hasBeachData) { setCurrentSlide(1); return 0; }
+          if (hasHourlyData) { setCurrentSlide(2); return 0; }
+          if (hasDailyData) { setCurrentSlide(3); return 0; }
+          return 0;
+        }
+
+        if (currentSlide === 1) {
+            // Se não tem dados ou chegou ao fim, vai pro próximo
+            if (!hasBeachData || next >= beachReport.length) {
+                if (hasHourlyData) { setCurrentSlide(2); return 0; }
+                if (hasDailyData) { setCurrentSlide(3); return 0; }
+                setCurrentSlide(0); return 0;
+            }
+        }
+
+        if (currentSlide === 2) {
+             // Previsão horária é um bloco único, fica por 1 ciclo de métrica (ex: 5-10s) e passa
+             if (!hasHourlyData || next >= 1) { 
+                if (hasDailyData) { setCurrentSlide(3); return 0; }
+                setCurrentSlide(0); return 0;
+             }
+        }
+
+        if (currentSlide === 3) {
+             if (!hasDailyData || next >= 5) { // Mostra 5 dias
+                setCurrentSlide(0); return 0;
+             }
+        }
+        
         return next;
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [currentSlide, beachReport]);
+  }, [currentSlide, beachReport, hasBeachData, hasHourlyData, hasDailyData]);
 
   const renderHugeMetric = (label: string, value: string, unit: string, Icon: any, color: string) => (
     <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center">
@@ -53,30 +85,34 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
     </div>
   );
 
-  const renderHugeBeach = (beach: any) => (
-    <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-4">
-      <Waves size={width / 5} className="text-blue-400 mb-6" />
-      <div className="text-yellow-400 font-bold uppercase tracking-tight mb-4" style={{ fontSize: `${labelSize * 1.3}px` }}>{beach.name}</div>
-      <div className={`font-bold mb-6 ${beach.condition === 'Perigosa' ? 'text-red-500' : 'text-green-400'}`} style={{ fontSize: `${labelSize}px` }}>
-        {beach.condition}
-      </div>
-      <div className="grid grid-cols-2 gap-10 w-full">
-         <div>
-            <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Água</div>
-            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.water}</div>
-         </div>
-         <div>
-            <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Ondas</div>
-            <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.waves}</div>
-         </div>
-      </div>
-    </div>
-  );
+  const renderHugeBeach = (beach: any) => {
+    if (!beach) return null;
+    return (
+        <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center p-4">
+        <Waves size={width / 5} className="text-blue-400 mb-6" />
+        <div className="text-yellow-400 font-bold uppercase tracking-tight mb-4" style={{ fontSize: `${labelSize * 1.3}px` }}>{beach.name}</div>
+        <div className={`font-bold mb-6 ${beach.condition === 'Perigosa' ? 'text-red-500' : 'text-green-400'}`} style={{ fontSize: `${labelSize}px` }}>
+            {beach.condition}
+        </div>
+        <div className="grid grid-cols-2 gap-10 w-full">
+            <div>
+                <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Água</div>
+                <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.water}</div>
+            </div>
+            <div>
+                <div className="opacity-50 uppercase mb-1" style={{ fontSize: `${subLabelSize}px` }}>Ondas</div>
+                <div className="font-bold" style={{ fontSize: `${hugeValueSize / 1.2}px` }}>{beach.waves}</div>
+            </div>
+        </div>
+        </div>
+    );
+  };
 
   const renderVerticalHourly = () => {
+    if (!hasHourlyData) return null;
+    
     // Cobertura total: 0, 3, 6, 9, 12, 15, 18, 21, 00(next)
-    // Mostramos 9 itens para cobrir o ciclo completo até o inicio do dia seguinte
-    const hourlyData = weather.hourly?.time
+    const hourlyData = weather.hourly!.time
       .map((t, i) => ({ 
         time: t, 
         temp: weather.hourly?.temperature_2m?.[i] ?? 0, 
@@ -89,7 +125,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
     return (
       <div className="flex flex-col justify-between h-full py-1 animate-fade-in overflow-hidden">
         <div className="text-center opacity-40 uppercase tracking-widest mb-1 font-bold" style={{ fontSize: `${subLabelSize}px` }}>Previsão 24h</div>
-        {hourlyData?.map((item, i) => (
+        {hourlyData.map((item, i) => (
           <div key={i} className="flex items-center justify-between border-b border-white/5 pb-0.5 last:border-0">
             <span className="font-bold w-12 text-left" style={{ fontSize: `${labelSize * 0.7}px` }}>{new Date(item.time).getHours()}h</span>
             <span style={{ fontSize: `${labelSize}px` }}>{getWeatherIcon(item.code)}</span>
@@ -104,8 +140,10 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
   };
 
   const renderHugeDaily = (index: number) => {
+    if (!hasDailyData) return null;
     const day = weather.daily?.time?.[index];
     if (!day) return null;
+    
     const date = new Date(day);
     const dayName = index === 0 ? 'Hoje' : date.toLocaleDateString('pt-BR', { weekday: 'long' });
     const max = Math.round(weather.daily?.temperature_2m_max?.[index] ?? 0);
@@ -161,9 +199,9 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
              renderHugeMetric("Umidade", `${weather.relative_humidity_2m}`, "%", Droplets, "text-blue-200")
           )}
 
-          {currentSlide === 1 && beachReport && renderHugeBeach(beachReport[subSlide % beachReport.length])}
-          {currentSlide === 2 && renderVerticalHourly()}
-          {currentSlide === 3 && renderHugeDaily(subSlide)}
+          {currentSlide === 1 && hasBeachData && renderHugeBeach(beachReport[subSlide % beachReport.length])}
+          {currentSlide === 2 && hasHourlyData && renderVerticalHourly()}
+          {currentSlide === 3 && hasDailyData && renderHugeDaily(subSlide)}
        </div>
 
        {/* INDICADOR */}

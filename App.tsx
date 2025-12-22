@@ -18,9 +18,10 @@ const MARICA_COORDS = { lat: -22.9194, lon: -42.8186 };
 
 function ErrorFallback({error, resetErrorBoundary}: any) {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-black/50 p-4 text-center">
-      <p className="text-red-400 font-bold mb-2">Erro.</p>
-      <button onClick={resetErrorBoundary} className="bg-white/10 px-4 py-2 rounded-lg text-sm">Reset</button>
+    <div className="w-full h-full flex flex-col items-center justify-center bg-black p-10 text-center z-50 fixed inset-0">
+      <p className="text-red-500 font-bold mb-4 text-2xl">Ocorreu um erro.</p>
+      <p className="text-white/50 mb-6 font-mono text-sm">{error.message}</p>
+      <button onClick={resetErrorBoundary} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform">Reiniciar Dashboard</button>
     </div>
   );
 }
@@ -33,7 +34,7 @@ const App = () => {
     daily: { time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] },
     hourly: { time: [], temperature_2m: [], weathercode: [] }
   });
-  const [beachReport, setBeachReport] = useState<any[]>([]);
+  const [beachReport, setBeachReport] = useState<any[]>([]); // Inicializa vazio, mas o Widget agora lida com isso
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hasStarted, setHasStarted] = useState(false);
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
@@ -58,20 +59,14 @@ const App = () => {
       const h = window.innerHeight;
       const sideWidth = Math.max(260, w * 0.22);
       
-      // Ajuste de posições para garantir que tudo caiba
       setWidgets(prev => ({
         ...prev,
-        // Lembretes no canto esquerdo, altura reduzida para deixar espaço para "Ontem" se necessário, 
-        // ou ocupa a lateral inteira se "Ontem" estiver no centro.
-        // O usuário pediu "embaixo como estava", implicando rodapé.
         reminders: { ...prev.reminders, width: sideWidth, height: h - 180, x: 20, y: 20 },
         weather: { ...prev.weather, width: sideWidth + 80, height: h - 40, x: w - (sideWidth + 100), y: 20 },
         date: { ...prev.date, width: w * 0.45, x: (w/2) - (w*0.225), y: (h/2) - 180 },
         clock: { ...prev.clock, x: (w/2) - (prev.clock.width/2), y: 20 },
-        
-        // Navegação nos cantos inferiores, alinhados com o Date widget ou nas pontas
-        prev: { ...prev.prev, x: (w/2) - (w*0.225) - 40, y: h - 140 }, // Levemente à esquerda do centro
-        next: { ...prev.next, x: (w/2) + (w*0.225) - 140, y: h - 140 }  // Levemente à direita do centro
+        prev: { ...prev.prev, x: (w/2) - (w*0.225) - 40, y: h - 140 }, 
+        next: { ...prev.next, x: (w/2) + (w*0.225) - 140, y: h - 140 }  
       }));
     };
     window.addEventListener('resize', handleResize);
@@ -82,11 +77,15 @@ const App = () => {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     const loadWeather = async () => {
-      const data = await fetchWeatherData(MARICA_COORDS);
-      if (data) {
-        setWeather(data);
-        const report = await generateBeachReport(data, 'Maricá');
-        setBeachReport(report);
+      try {
+        const data = await fetchWeatherData(MARICA_COORDS);
+        if (data) {
+          setWeather(data);
+          const report = await generateBeachReport(data, 'Maricá');
+          setBeachReport(report || []);
+        }
+      } catch (e) {
+        console.error("Erro ao carregar clima:", e);
       }
     };
     loadWeather();
@@ -142,9 +141,10 @@ const App = () => {
 
   if (!hasStarted) {
     return (
-      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white cursor-pointer" onClick={() => setHasStarted(true)}>
+      <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white cursor-pointer select-none" onClick={() => setHasStarted(true)}>
         <Power size={80} className="text-yellow-500 animate-pulse mb-6" />
         <h1 className="text-5xl font-bold tracking-[0.5em]">SMART HOME</h1>
+        <p className="mt-4 opacity-50 text-sm tracking-widest">TOQUE PARA INICIAR</p>
       </div>
     );
   }
@@ -160,66 +160,68 @@ const App = () => {
   const tomorrow = getDateInfo(new Date(new Date().setDate(currentTime.getDate() + 1)));
 
   return (
-    <main className="w-full h-screen overflow-hidden relative select-none text-white" style={getBackgroundStyle()}>
-      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <main className="w-full h-screen overflow-hidden relative select-none text-white" style={getBackgroundStyle()}>
+        <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
-      <section className="absolute inset-0 z-10">
-        {/* RELÓGIO */}
-        <ResizableWidget width={widgets.clock.width} height={widgets.clock.height} locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onResize={(w, h) => updateWidget('clock', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('clock', { x, y })}>
-          <ClockWidget currentTime={currentTime} greeting={currentTime.getHours() < 12 ? 'Bom dia' : 'Boa tarde'} width={widgets.clock.width} />
-        </ResizableWidget>
+        <section className="absolute inset-0 z-10">
+          {/* RELÓGIO */}
+          <ResizableWidget width={widgets.clock.width} height={widgets.clock.height} locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onResize={(w, h) => updateWidget('clock', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('clock', { x, y })}>
+            <ClockWidget currentTime={currentTime} greeting={currentTime.getHours() < 12 ? 'Bom dia' : 'Boa tarde'} width={widgets.clock.width} />
+          </ResizableWidget>
 
-        {/* LEMBRETES (Lado Esquerdo) */}
-        <ResizableWidget width={widgets.reminders.width} height={widgets.reminders.height} locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}>
-          <RemindersWidget reminders={reminders} onAdd={addReminder} onDelete={deleteReminder} />
-        </ResizableWidget>
+          {/* LEMBRETES (Lado Esquerdo) */}
+          <ResizableWidget width={widgets.reminders.width} height={widgets.reminders.height} locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}>
+            <RemindersWidget reminders={reminders} onAdd={addReminder} onDelete={deleteReminder} />
+          </ResizableWidget>
 
-        {/* CLIMA (Lado Direito) */}
-        <ResizableWidget width={widgets.weather.width} height={widgets.weather.height} locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onResize={(w, h) => updateWidget('weather', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('weather', { x, y })}>
-          <WeatherWidget weather={weather} locationName="Maricá - RJ" beachReport={beachReport} width={widgets.weather.width} />
-        </ResizableWidget>
+          {/* CLIMA (Lado Direito) */}
+          <ResizableWidget width={widgets.weather.width} height={widgets.weather.height} locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onResize={(w, h) => updateWidget('weather', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('weather', { x, y })}>
+            <WeatherWidget weather={weather} locationName="Maricá - RJ" beachReport={beachReport} width={widgets.weather.width} />
+          </ResizableWidget>
 
-        {/* DATA CENTRAL */}
-        <ResizableWidget width={widgets.date.width} height={widgets.date.height} locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onResize={(w, h) => updateWidget('date', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('date', { x, y })}>
-          <div className="flex flex-col items-center justify-center h-full text-center drop-shadow-2xl animate-fade-in pointer-events-none">
-            <span className="font-bold opacity-60 text-yellow-400 tracking-[0.5em] mb-4" style={{ fontSize: `${widgets.date.width / 10}px` }}>HOJE</span>
-            <span className="font-bold leading-none my-4" style={{ fontSize: `${widgets.date.width / 1.8}px` }}>{today.day}</span>
-            <span className="font-light uppercase tracking-[0.3em] text-blue-100" style={{ fontSize: `${widgets.date.width / 9}px` }}>{today.weekday}</span>
-          </div>
-        </ResizableWidget>
+          {/* DATA CENTRAL */}
+          <ResizableWidget width={widgets.date.width} height={widgets.date.height} locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onResize={(w, h) => updateWidget('date', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('date', { x, y })}>
+            <div className="flex flex-col items-center justify-center h-full text-center drop-shadow-2xl animate-fade-in pointer-events-none">
+              <span className="font-bold opacity-60 text-yellow-400 tracking-[0.5em] mb-4" style={{ fontSize: `${widgets.date.width / 10}px` }}>HOJE</span>
+              <span className="font-bold leading-none my-4" style={{ fontSize: `${widgets.date.width / 1.8}px` }}>{today.day}</span>
+              <span className="font-light uppercase tracking-[0.3em] text-blue-100" style={{ fontSize: `${widgets.date.width / 9}px` }}>{today.weekday}</span>
+            </div>
+          </ResizableWidget>
 
-        {/* ONTEM (Canto Inferior Esquerdo) */}
-        <ResizableWidget width={widgets.prev.width} height={widgets.prev.height} locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onResize={(w, h) => updateWidget('prev', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('prev', { x, y })}>
-           <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
-              <ArrowLeft size={widgets.prev.width / 4} />
-              <div className="text-left">
-                <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 10}px` }}>Ontem</span>
-                <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 4}px` }}>{yesterday.day}</span>
-                <span className="opacity-60 uppercase" style={{ fontSize: `${widgets.prev.width / 12}px` }}>{yesterday.month}</span>
-              </div>
-           </div>
-        </ResizableWidget>
+          {/* ONTEM (Canto Inferior Esquerdo) */}
+          <ResizableWidget width={widgets.prev.width} height={widgets.prev.height} locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onResize={(w, h) => updateWidget('prev', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('prev', { x, y })}>
+            <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
+                <ArrowLeft size={widgets.prev.width / 4} />
+                <div className="text-left">
+                  <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 10}px` }}>Ontem</span>
+                  <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 4}px` }}>{yesterday.day}</span>
+                  <span className="opacity-60 uppercase" style={{ fontSize: `${widgets.prev.width / 12}px` }}>{yesterday.month}</span>
+                </div>
+            </div>
+          </ResizableWidget>
 
-        {/* AMANHÃ (Canto Inferior Direito) */}
-        <ResizableWidget width={widgets.next.width} height={widgets.next.height} locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onResize={(w, h) => updateWidget('next', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('next', { x, y })}>
-           <div className="flex items-center gap-4 justify-end opacity-50 hover:opacity-100 transition-opacity">
-              <div className="text-right">
-                <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 10}px` }}>Amanhã</span>
-                <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 4}px` }}>{tomorrow.day}</span>
-                <span className="opacity-60 uppercase" style={{ fontSize: `${widgets.next.width / 12}px` }}>{tomorrow.month}</span>
-              </div>
-              <ArrowRight size={widgets.next.width / 4} />
-           </div>
-        </ResizableWidget>
-      </section>
+          {/* AMANHÃ (Canto Inferior Direito) */}
+          <ResizableWidget width={widgets.next.width} height={widgets.next.height} locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onResize={(w, h) => updateWidget('next', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('next', { x, y })}>
+            <div className="flex items-center gap-4 justify-end opacity-50 hover:opacity-100 transition-opacity">
+                <div className="text-right">
+                  <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 10}px` }}>Amanhã</span>
+                  <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 4}px` }}>{tomorrow.day}</span>
+                  <span className="opacity-60 uppercase" style={{ fontSize: `${widgets.next.width / 12}px` }}>{tomorrow.month}</span>
+                </div>
+                <ArrowRight size={widgets.next.width / 4} />
+            </div>
+          </ResizableWidget>
+        </section>
 
-      {/* FOOTER LOCK */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
-        <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-6 rounded-full shadow-2xl transition-all duration-300 border-2 ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20' : 'bg-yellow-500 text-black border-yellow-300 scale-125'}`}>
-          {isLayoutLocked ? <Lock size={28}/> : <Edit3 size={28}/>}
-        </button>
-      </div>
-    </main>
+        {/* FOOTER LOCK */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-6 rounded-full shadow-2xl transition-all duration-300 border-2 ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20' : 'bg-yellow-500 text-black border-yellow-300 scale-125'}`}>
+            {isLayoutLocked ? <Lock size={28}/> : <Edit3 size={28}/>}
+          </button>
+        </div>
+      </main>
+    </ErrorBoundary>
   );
 };
 
