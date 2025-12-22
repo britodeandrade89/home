@@ -57,14 +57,21 @@ const App = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const sideWidth = Math.max(260, w * 0.22);
+      
+      // Ajuste de posições para garantir que tudo caiba
       setWidgets(prev => ({
         ...prev,
-        reminders: { ...prev.reminders, width: sideWidth, height: h - 140, x: 20, y: 20 },
+        // Lembretes no canto esquerdo, altura reduzida para deixar espaço para "Ontem" se necessário, 
+        // ou ocupa a lateral inteira se "Ontem" estiver no centro.
+        // O usuário pediu "embaixo como estava", implicando rodapé.
+        reminders: { ...prev.reminders, width: sideWidth, height: h - 180, x: 20, y: 20 },
         weather: { ...prev.weather, width: sideWidth + 80, height: h - 40, x: w - (sideWidth + 100), y: 20 },
         date: { ...prev.date, width: w * 0.45, x: (w/2) - (w*0.225), y: (h/2) - 180 },
         clock: { ...prev.clock, x: (w/2) - (prev.clock.width/2), y: 20 },
-        prev: { ...prev.prev, x: (w/2) - (w*0.225), y: h - 140 },
-        next: { ...prev.next, x: (w/2) + (w*0.225) - 180, y: h - 140 }
+        
+        // Navegação nos cantos inferiores, alinhados com o Date widget ou nas pontas
+        prev: { ...prev.prev, x: (w/2) - (w*0.225) - 40, y: h - 140 }, // Levemente à esquerda do centro
+        next: { ...prev.next, x: (w/2) + (w*0.225) - 140, y: h - 140 }  // Levemente à direita do centro
       }));
     };
     window.addEventListener('resize', handleResize);
@@ -162,12 +169,12 @@ const App = () => {
           <ClockWidget currentTime={currentTime} greeting={currentTime.getHours() < 12 ? 'Bom dia' : 'Boa tarde'} width={widgets.clock.width} />
         </ResizableWidget>
 
-        {/* LEMBRETES */}
+        {/* LEMBRETES (Lado Esquerdo) */}
         <ResizableWidget width={widgets.reminders.width} height={widgets.reminders.height} locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}>
           <RemindersWidget reminders={reminders} onAdd={addReminder} onDelete={deleteReminder} />
         </ResizableWidget>
 
-        {/* CLIMA */}
+        {/* CLIMA (Lado Direito) */}
         <ResizableWidget width={widgets.weather.width} height={widgets.weather.height} locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onResize={(w, h) => updateWidget('weather', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('weather', { x, y })}>
           <WeatherWidget weather={weather} locationName="Maricá - RJ" beachReport={beachReport} width={widgets.weather.width} />
         </ResizableWidget>
@@ -181,7 +188,7 @@ const App = () => {
           </div>
         </ResizableWidget>
 
-        {/* ONTEM */}
+        {/* ONTEM (Canto Inferior Esquerdo) */}
         <ResizableWidget width={widgets.prev.width} height={widgets.prev.height} locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onResize={(w, h) => updateWidget('prev', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('prev', { x, y })}>
            <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
               <ArrowLeft size={widgets.prev.width / 4} />
@@ -193,7 +200,7 @@ const App = () => {
            </div>
         </ResizableWidget>
 
-        {/* AMANHÃ */}
+        {/* AMANHÃ (Canto Inferior Direito) */}
         <ResizableWidget width={widgets.next.width} height={widgets.next.height} locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onResize={(w, h) => updateWidget('next', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('next', { x, y })}>
            <div className="flex items-center gap-4 justify-end opacity-50 hover:opacity-100 transition-opacity">
               <div className="text-right">

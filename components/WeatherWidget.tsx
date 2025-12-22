@@ -74,7 +74,8 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
   );
 
   const renderVerticalHourly = () => {
-    // Cobertura total 24h: 0, 3, 6, 9, 12, 15, 18, 21
+    // Cobertura total: 0, 3, 6, 9, 12, 15, 18, 21, 00(next)
+    // Mostramos 9 itens para cobrir o ciclo completo até o inicio do dia seguinte
     const hourlyData = weather.hourly?.time
       .map((t, i) => ({ 
         time: t, 
@@ -83,17 +84,17 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
         pop: weather.hourly?.precipitation_probability?.[i] ?? 0
       }))
       .filter((_, i) => i % 3 === 0)
-      .slice(0, 8); // 8 slots = 24h
+      .slice(0, 9); 
 
     return (
-      <div className="flex flex-col justify-around h-full py-2 animate-fade-in overflow-hidden">
-        <div className="text-center opacity-40 uppercase tracking-widest mb-2 font-bold" style={{ fontSize: `${subLabelSize}px` }}>Previsão 24h</div>
+      <div className="flex flex-col justify-between h-full py-1 animate-fade-in overflow-hidden">
+        <div className="text-center opacity-40 uppercase tracking-widest mb-1 font-bold" style={{ fontSize: `${subLabelSize}px` }}>Previsão 24h</div>
         {hourlyData?.map((item, i) => (
-          <div key={i} className="flex items-center justify-between border-b border-white/5 pb-1 last:border-0">
-            <span className="font-bold w-12" style={{ fontSize: `${labelSize * 0.7}px` }}>{new Date(item.time).getHours()}h</span>
+          <div key={i} className="flex items-center justify-between border-b border-white/5 pb-0.5 last:border-0">
+            <span className="font-bold w-12 text-left" style={{ fontSize: `${labelSize * 0.7}px` }}>{new Date(item.time).getHours()}h</span>
             <span style={{ fontSize: `${labelSize}px` }}>{getWeatherIcon(item.code)}</span>
-            <div className="flex items-center gap-2 text-blue-300 font-bold" style={{ fontSize: `${labelSize * 0.6}px` }}>
-              <CloudRain size={labelSize * 0.6} /> {item.pop}%
+            <div className="flex items-center gap-1 text-blue-300 font-bold" style={{ fontSize: `${labelSize * 0.9}px` }}>
+              <CloudRain size={labelSize * 0.9} /> {item.pop}%
             </div>
             <span className="font-bold text-white text-right w-12" style={{ fontSize: `${labelSize * 0.8}px` }}>{Math.round(item.temp)}°</span>
           </div>

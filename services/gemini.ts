@@ -1,8 +1,19 @@
-
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 
-// Always use process.env.API_KEY for client initialization as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Inicialização segura para evitar crash se process não estiver definido no browser
+const getAiClient = () => {
+  let key = "";
+  try {
+    // Tenta acessar process.env de forma segura
+    if (typeof process !== "undefined" && process.env && process.env.API_KEY) {
+      key = process.env.API_KEY;
+    }
+  } catch (e) {
+    console.warn("Ambiente sem process.env");
+  }
+  // Se não tiver chave, o SDK vai reclamar na chamada, mas não cracha o app na inicialização
+  return new GoogleGenAI({ apiKey: key });
+};
 
 // --- CHAT FEATURE ---
 let chatSession: Chat | null = null;
@@ -10,7 +21,7 @@ let chatSession: Chat | null = null;
 export const getChatResponse = async (userMessage: string): Promise<string> => {
   try {
     if (!chatSession) {
-      chatSession = ai.chats.create({
+      chatSession = getAiClient().chats.create({
         model: "gemini-3-flash-preview",
         config: {
           systemInstruction: `Você é o "Smart Home Assistant", uma IA de painel doméstico em Maricá-RJ. Seja direto e amigável.`,
@@ -18,7 +29,6 @@ export const getChatResponse = async (userMessage: string): Promise<string> => {
       });
     }
     const result = await chatSession.sendMessage({ message: userMessage });
-    // Use .text property directly
     return result.text || "Sem resposta.";
   } catch (error) {
     console.error("Erro no Chat IA:", error);
@@ -40,7 +50,7 @@ export const generateBeachReport = async (weatherData: any, locationName: string
       - waves (ex: 0.5m)
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
@@ -60,7 +70,6 @@ export const generateBeachReport = async (weatherData: any, locationName: string
       }
     });
     
-    // With responseMimeType application/json, .text contains the raw JSON string
     const text = response.text || "[]";
     return JSON.parse(text);
   } catch (e) {
@@ -72,12 +81,9 @@ export const generateBeachReport = async (weatherData: any, locationName: string
   }
 };
 
-/**
- * Chef AI suggestion implementation to resolve error in ChefModal.tsx
- */
 export const getChefSuggestion = async (ingredients: string): Promise<string> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Sugira uma receita criativa com estes ingredientes: ${ingredients}. Seja sucinto e use markdown.`,
       config: {
@@ -91,12 +97,9 @@ export const getChefSuggestion = async (ingredients: string): Promise<string> =>
   }
 };
 
-/**
- * News report generator to resolve error in App.tsx
- */
 export const generateNewsReport = async (): Promise<any> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: "Gere 3 manchetes fictícias curtas para Maricá-RJ (Política, Esportes e Cultura).",
       config: {
@@ -157,7 +160,7 @@ export interface VoiceCommandResult {
 
 export const processVoiceCommandAI = async (text: string): Promise<VoiceCommandResult | null> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAiClient().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: text,
       config: {
