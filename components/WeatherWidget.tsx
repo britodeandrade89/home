@@ -21,7 +21,7 @@ const getWeatherIcon = (code: number) => {
 };
 
 const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, beachReport, width = 300 }) => {
-  const [currentSlide, setCurrentSlide] = useState(1); // Começa mostrando PRAIA (Slide 1) para garantir visibilidade
+  const [currentSlide, setCurrentSlide] = useState(1); // Começa mostrando PRAIA
   const [subSlide, setSubSlide] = useState(0);
 
   const tempSize = Math.max(width / 3, 48);
@@ -38,18 +38,12 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
       setSubSlide(prev => {
         const next = prev + 1;
         
-        // Lógica de Rotação: 
-        // 0: Métricas Gerais (Vento, Chuva)
-        // 1: Praias (Rotação entre as praias)
-        // 2: Previsão Horária
-        // 3: Previsão Diária
-
+        // Rotação Global: 0 (Métricas) -> 1 (Praia) -> 2 (Horário) -> 3 (Diário)
         if (currentSlide === 0 && next >= 4) { 
-           setCurrentSlide(1); return 0; // Vai para praias
+           setCurrentSlide(1); return 0;
         }
 
         if (currentSlide === 1) {
-            // Fica nas praias até mostrar todas
             if (!hasBeachData || next >= beachReport.length) {
                 setCurrentSlide(2); return 0;
             }
@@ -69,7 +63,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
         
         return next;
       });
-    }, 6000); // 6 segundos por tela
+    }, 5000); // 5 SEGUNDOS conforme solicitado
     return () => clearInterval(interval);
   }, [currentSlide, beachReport, hasBeachData, hasHourlyData, hasDailyData]);
 
@@ -92,14 +86,12 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
     return (
         <div className="flex flex-col items-center justify-between h-full animate-fade-in text-center p-2 relative">
             
-            {/* BADGE DE RECOMENDAÇÃO */}
             {isBest && (
                 <div className="absolute top-0 bg-yellow-400 text-black px-4 py-1 rounded-full font-bold uppercase tracking-wider text-sm shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse z-20">
                     🏆 Melhor Escolha
                 </div>
             )}
             
-            {/* Ícone Principal */}
             <div className="mt-8 mb-2">
                 {isDangerous ? (
                     <Skull size={width / 4} className="text-red-500 opacity-80" />
@@ -110,7 +102,6 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
                 )}
             </div>
 
-            {/* Nome e Condição */}
             <div>
                 <div className="text-white font-bold uppercase tracking-tight leading-none mb-1" style={{ fontSize: `${labelSize * 1.5}px` }}>{beach.name}</div>
                 <div className={`font-bold uppercase tracking-widest ${isDangerous ? 'text-red-500' : isBest ? 'text-green-400' : 'text-yellow-400'}`} style={{ fontSize: `${labelSize}px` }}>
@@ -118,7 +109,6 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ weather, locationName, be
                 </div>
             </div>
 
-            {/* Grid de Informações */}
             <div className="bg-white/5 rounded-2xl p-4 w-full grid grid-cols-2 gap-4 border border-white/10 mt-4">
                 <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2 text-cyan-300 mb-1">

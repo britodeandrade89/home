@@ -30,18 +30,14 @@ function ErrorFallback({error, resetErrorBoundary}: any) {
 const App = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  
-  // INICIALIZAÇÃO CRÍTICA: Começa com o fallback importado para garantir que o widget tenha dados
   const [beachReport, setBeachReport] = useState<any[]>(BEACH_FALLBACK);
-  
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hasStarted, setHasStarted] = useState(false);
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // Layout inicial (será recalculado no resize)
   const [widgets, setWidgets] = useState({
-    clock: { width: 300, height: 120, x: 0, y: 0 },
+    clock: { width: 300, height: 100, x: 0, y: 0 },
     reminders: { width: 300, height: 600, x: 0, y: 0 }, 
     weather: { width: 350, height: 600, x: 0, y: 0 }, 
     date: { width: 400, height: 300, x: 0, y: 0 }, 
@@ -53,56 +49,63 @@ const App = () => {
     setWidgets(prev => ({ ...prev, [key]: { ...prev[key as keyof typeof prev], ...updates } }));
   };
 
-  // 1. RECALCULAR LAYOUT (Responsivo e Fixo)
+  // LAYOUT RÍGIDO - 3 COLUNAS
   const recalculateLayout = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     
-    // Definições de tamanho
-    const sideColWidth = Math.max(300, w * 0.25); // 25% da tela ou 300px
+    // Configurações de Espaçamento
     const padding = 20;
+    const sideColumnWidth = w * 0.28; // 28% para as laterais
+    const centerColumnWidth = w * 0.44; // 44% para o centro
 
     setWidgets({
-      // Relógio: Topo Centro
-      clock: { 
-        width: 300, 
-        height: 120, 
-        x: (w / 2) - 150, 
-        y: padding 
-      },
-      // Lembretes: Coluna Esquerda Total (menos padding)
+      // 1. COLUNA ESQUERDA (Lembretes) - Altura Total
       reminders: { 
-        width: sideColWidth, 
+        width: sideColumnWidth - padding, 
         height: h - (padding * 2), 
         x: padding, 
         y: padding 
       },
-      // Clima: Coluna Direita Total
+
+      // 2. COLUNA DIREITA (Clima) - Altura Total
       weather: { 
-        width: sideColWidth + 50, 
+        width: sideColumnWidth - padding, 
         height: h - (padding * 2), 
-        x: w - (sideColWidth + 50) - padding, 
+        x: w - (sideColumnWidth) - padding + padding, // Ajuste para encostar na direita
         y: padding 
       },
-      // Data: Centro Absoluto
-      date: { 
-        width: w * 0.3, 
-        height: 300, 
-        x: (w / 2) - ((w * 0.3) / 2), 
-        y: (h / 2) - 150 
-      },
-      // Ontem: Canto Inferior Esquerdo (ancorado na coluna central)
-      prev: { 
-        width: 200, 
+
+      // 3. COLUNA CENTRAL (Relógio + Data + Footer)
+      // Relógio: Topo do Centro
+      clock: { 
+        width: centerColumnWidth, 
         height: 120, 
-        x: sideColWidth + (padding * 2), 
+        x: sideColumnWidth + padding, 
+        y: padding + 10 // Um pouco abaixo do topo
+      },
+      
+      // Data: Centro Absoluto da tela (mas dentro da coluna central)
+      date: { 
+        width: centerColumnWidth, 
+        height: 250, 
+        x: sideColumnWidth + padding, 
+        y: (h / 2) - 125 // Centralizado verticalmente
+      },
+
+      // Ontem: Canto Inferior Esquerdo da COLUNA CENTRAL
+      prev: { 
+        width: centerColumnWidth / 2.5, 
+        height: 100, 
+        x: sideColumnWidth + padding, 
         y: h - 140 
       },
-      // Amanhã: Canto Inferior Direito (ancorado na coluna central)
+
+      // Amanhã: Canto Inferior Direito da COLUNA CENTRAL
       next: { 
-        width: 200, 
-        height: 120, 
-        x: w - (sideColWidth + 50 + padding + 200 + padding), 
+        width: centerColumnWidth / 2.5, 
+        height: 100, 
+        x: w - sideColumnWidth - padding - (centerColumnWidth / 2.5), 
         y: h - 140 
       }
     });
@@ -114,15 +117,11 @@ const App = () => {
     return () => window.removeEventListener('resize', recalculateLayout);
   }, [recalculateLayout]);
 
-  // 2. FETCH DE DADOS ROBUSTO
   const loadData = useCallback(async () => {
     try {
-      // Clima
       const data = await fetchWeatherData(MARICA_COORDS);
       if (data) {
         setWeather(data);
-        // Praia (Gemini)
-        // Mesmo com fallback inicial, tentamos atualizar com dados frescos da IA
         const report = await generateBeachReport(data, 'Maricá');
         if (report && report.length > 0) {
           setBeachReport(report);
@@ -134,26 +133,23 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    loadData(); // Carga inicial
-    const interval = setInterval(loadData, 300000); // Atualiza dados a cada 5 min
+    loadData();
+    const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
   }, [loadData]);
 
-  // 3. AUTO RELOAD DA PÁGINA (Prevenção de congelamento)
   useEffect(() => {
     const pageReload = setInterval(() => {
       window.location.reload();
-    }, 1800000); // Recarrega a página inteira a cada 30 minutos
+    }, 1800000); 
     return () => clearInterval(pageReload);
   }, []);
 
-  // Relógio local
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Firebase (Lembretes)
   useEffect(() => {
     if (db) {
       const q = query(collection(db, "smart_home_reminders"), orderBy("createdAt", "desc"));
@@ -181,7 +177,6 @@ const App = () => {
   };
 
   const getBackgroundStyle = () => {
-    // Fundo padrão caso weather ainda seja null
     const code = weather?.weathercode || 0;
     let imageId = '1507525428034-b723cf961d3e'; 
     if (code >= 51) imageId = '1515694346937-94d85e41e6f0'; 
@@ -196,8 +191,7 @@ const App = () => {
 
   const startApp = () => {
     setHasStarted(true);
-    recalculateLayout(); // Força layout correto ao iniciar
-    // Tenta tela cheia
+    recalculateLayout(); 
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied", e));
     }
@@ -223,7 +217,6 @@ const App = () => {
   const yesterday = getDateInfo(new Date(new Date().setDate(currentTime.getDate() - 1)));
   const tomorrow = getDateInfo(new Date(new Date().setDate(currentTime.getDate() + 1)));
 
-  // Mock weather para renderização inicial se a API demorar
   const displayWeather = weather || {
     temperature: '--', weathercode: 0, is_day: 1, apparent_temperature: '--', 
     precipitation_probability: 0, wind_speed: 0, relative_humidity_2m: 0,
@@ -237,62 +230,61 @@ const App = () => {
         <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
         <section className="absolute inset-0 z-10 pointer-events-none">
-          {/* A pointer-events-none no container pai garante que o fundo não bloqueie cliques, mas widgets precisam ter pointer-events-auto */}
           
-          {/* RELÓGIO (Topo Centro) */}
+          {/* 1. RELÓGIO (Centro Topo) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.clock.width} height={widgets.clock.height} locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onResize={(w, h) => updateWidget('clock', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('clock', { x, y })}>
               <ClockWidget currentTime={currentTime} greeting={currentTime.getHours() < 12 ? 'Bom dia' : 'Boa tarde'} width={widgets.clock.width} />
             </ResizableWidget>
           </div>
 
-          {/* LEMBRETES (Esquerda Fixa) */}
+          {/* 2. LEMBRETES (Esquerda Total) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.reminders.width} height={widgets.reminders.height} locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}>
               <RemindersWidget reminders={reminders} onAdd={addReminder} onDelete={deleteReminder} />
             </ResizableWidget>
           </div>
 
-          {/* CLIMA (Direita Fixa) */}
+          {/* 3. CLIMA (Direita Total) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.weather.width} height={widgets.weather.height} locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onResize={(w, h) => updateWidget('weather', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('weather', { x, y })}>
               <WeatherWidget weather={displayWeather} locationName="Maricá - RJ" beachReport={beachReport} width={widgets.weather.width} />
             </ResizableWidget>
           </div>
 
-          {/* DATA CENTRAL */}
+          {/* 4. DATA CENTRAL (Meio) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.date.width} height={widgets.date.height} locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onResize={(w, h) => updateWidget('date', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('date', { x, y })}>
               <div className="flex flex-col items-center justify-center h-full text-center drop-shadow-2xl animate-fade-in pointer-events-none">
-                <span className="font-bold opacity-60 text-yellow-400 tracking-[0.5em] mb-4" style={{ fontSize: `${widgets.date.width / 10}px` }}>HOJE</span>
-                <span className="font-bold leading-none my-4" style={{ fontSize: `${widgets.date.width / 1.8}px` }}>{today.day}</span>
-                <span className="font-light uppercase tracking-[0.3em] text-blue-100" style={{ fontSize: `${widgets.date.width / 9}px` }}>{today.weekday}</span>
+                <span className="font-bold opacity-70 text-yellow-400 tracking-[0.4em] mb-0" style={{ fontSize: `${widgets.date.width / 14}px` }}>HOJE</span>
+                <span className="font-bold leading-none my-2 text-white" style={{ fontSize: `${widgets.date.width / 1.6}px` }}>{today.day}</span>
+                <span className="font-light uppercase tracking-[0.3em] text-blue-100" style={{ fontSize: `${widgets.date.width / 10}px` }}>{today.weekday}</span>
               </div>
             </ResizableWidget>
           </div>
 
-          {/* ONTEM */}
+          {/* 5. ONTEM (Canto Inferior Esquerdo da Coluna Central) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.prev.width} height={widgets.prev.height} locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onResize={(w, h) => updateWidget('prev', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('prev', { x, y })}>
-              <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-opacity p-4">
-                  <ArrowLeft size={widgets.prev.width / 4} />
+              <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity p-2">
+                  <ArrowLeft size={widgets.prev.width / 5} />
                   <div className="text-left">
-                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 10}px` }}>Ontem</span>
-                    <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 4}px` }}>{yesterday.day}</span>
+                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 8}px` }}>Ontem</span>
+                    <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 3.5}px` }}>{yesterday.day}</span>
                   </div>
               </div>
             </ResizableWidget>
           </div>
 
-          {/* AMANHÃ */}
+          {/* 6. AMANHÃ (Canto Inferior Direito da Coluna Central) */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.next.width} height={widgets.next.height} locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onResize={(w, h) => updateWidget('next', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('next', { x, y })}>
-              <div className="flex items-center gap-4 justify-end opacity-50 hover:opacity-100 transition-opacity p-4">
+              <div className="flex items-center gap-3 justify-end opacity-50 hover:opacity-100 transition-opacity p-2">
                   <div className="text-right">
-                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 10}px` }}>Amanhã</span>
-                    <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 4}px` }}>{tomorrow.day}</span>
+                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 8}px` }}>Amanhã</span>
+                    <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 3.5}px` }}>{tomorrow.day}</span>
                   </div>
-                  <ArrowRight size={widgets.next.width / 4} />
+                  <ArrowRight size={widgets.next.width / 5} />
               </div>
             </ResizableWidget>
           </div>
