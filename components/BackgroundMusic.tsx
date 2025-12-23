@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Volume2, VolumeX, Music } from 'lucide-react';
+import { Volume2, VolumeX, Music, SkipForward, Radio } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-// Playlist com IDs de vídeos/mixes na vibe solicitada (Ed Sheeran, Rihanna, H.E.R, Chill R&B)
+// Playlist com IDs curados: H.E.R, Ed Sheeran, Rihanna, e vibes similares
 const PLAYLIST_IDS = [
   "2FJoRz34q9s", // H.E.R. - Best Part
   "JGwWNGJdvx8", // Ed Sheeran - Shape of You
@@ -17,8 +17,8 @@ const PLAYLIST_IDS = [
   "0RyInjfgNc4", // Rihanna - Umbrella
   "2Vv-BfVoq4g", // Ed Sheeran - Perfect
   "hG4lT4tdyGQ", // Daniel Caesar - Get You
-  "fB8qJwRM1v8", // Relaxing R&B Mix
-  "kPhpHvnnn0Q"  // Chill Vibes Playlist
+  "kPhpHvnnn0Q", // Chill Vibes Playlist
+  "fB8qJwRM1v8"  // Relaxing R&B Mix
 ];
 
 interface BackgroundMusicProps {
@@ -27,88 +27,109 @@ interface BackgroundMusicProps {
 
 const BackgroundMusic: React.FC<BackgroundMusicProps> = ({ isPlaying }) => {
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [playerReady, setPlayerReady] = useState(false);
   const playerRef = useRef<any>(null);
 
   useEffect(() => {
-    // Carrega a API do YouTube IFrame
-    const tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    // Função de inicialização
+    const initPlayer = () => {
+      if (playerRef.current) return; // Já inicializado
 
-    window.onYouTubeIframeAPIReady = () => {
-      playerRef.current = new window.YT.Player('yt-player', {
-        height: '1',
-        width: '1',
-        videoId: PLAYLIST_IDS[0],
-        playerVars: {
-          'autoplay': 1,
-          'controls': 0,
-          'disablekb': 1,
-          'fs': 0,
-          'loop': 0, // Controlaremos o loop manualmente para trocar de música
-          'modestbranding': 1,
-          'playsinline': 1,
-          'rel': 0,
-        },
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
-        }
-      });
+      try {
+        playerRef.current = new window.YT.Player('yt-player', {
+          height: '360', // Tamanho padrão (oculto via CSS) para garantir renderização
+          width: '640',
+          videoId: PLAYLIST_IDS[0], // Começa com o primeiro
+          playerVars: {
+            'autoplay': 1,
+            'controls': 0,
+            'disablekb': 1,
+            'fs': 0,
+            'loop': 0,
+            'modestbranding': 1,
+            'playsinline': 1,
+            'rel': 0,
+            'origin': window.location.origin
+          },
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+          }
+        });
+      } catch (error) {
+        console.error("Erro ao criar player YT:", error);
+      }
     };
 
-    return () => {
-      // Cleanup simples
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch(e) {}
+    // Verifica se a API já existe no global
+    if (window.YT && window.YT.Player) {
+      initPlayer();
+    } else {
+      // Carrega script se ainda não existir
+      if (!document.getElementById('yt-api-script')) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        tag.id = 'yt-api-script';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
       }
+
+      // Callback global
+      window.onYouTubeIframeAPIReady = () => {
+        initPlayer();
+      };
+    }
+
+    return () => {
+      // Cleanup opcional
     };
   }, []);
 
+  // Monitora mudança de estado isPlaying
   useEffect(() => {
-    if (playerRef.current && playerRef.current.playVideo) {
+    if (playerRef.current && playerReady && typeof playerRef.current.playVideo === 'function') {
       if (isPlaying) {
         playerRef.current.playVideo();
       } else {
         playerRef.current.pauseVideo();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, playerReady]);
 
   const onPlayerReady = (event: any) => {
+    setPlayerReady(true);
+    event.target.setVolume(40); // Volume inicial agradável
     if (isPlaying) {
       event.target.playVideo();
-      event.target.setVolume(50); // Começa com volume médio
     }
   };
 
   const onPlayerStateChange = (event: any) => {
-    // 0 = Ended
+    // 0 = Ended (Terminou o vídeo)
     if (event.data === 0) {
       playNext();
     }
   };
 
+  const onPlayerError = (event: any) => {
+    console.warn("Erro no player do YouTube (código " + event.data + "). Pulando faixa...");
+    // 150 ou 101 = vídeo não embeddable. Pula para o próximo.
+    playNext();
+  };
+
   const playNext = () => {
-    // Algoritmo simples de shuffle "IA"
-    let nextIndex = Math.floor(Math.random() * PLAYLIST_IDS.length);
-    // Evita repetir a mesma música
-    if (nextIndex === currentTrackIndex) {
-        nextIndex = (nextIndex + 1) % PLAYLIST_IDS.length;
-    }
+    if (!playerRef.current || !playerRef.current.loadVideoById) return;
     
-    setCurrentTrackIndex(nextIndex);
-    if (playerRef.current) {
-        playerRef.current.loadVideoById(PLAYLIST_IDS[nextIndex]);
-    }
+    // Escolhe um índice aleatório diferente do atual (simplificado)
+    const nextIndex = Math.floor(Math.random() * PLAYLIST_IDS.length);
+    const nextId = PLAYLIST_IDS[nextIndex];
+    
+    playerRef.current.loadVideoById(nextId);
   };
 
   const toggleMute = () => {
-    if (playerRef.current) {
+    if (playerRef.current && typeof playerRef.current.mute === 'function') {
       if (isMuted) {
         playerRef.current.unMute();
       } else {
@@ -119,19 +140,39 @@ const BackgroundMusic: React.FC<BackgroundMusicProps> = ({ isPlaying }) => {
   };
 
   return (
-    <div className="absolute bottom-8 right-8 z-50 flex items-center gap-4 animate-fade-in">
-       {/* O Player fica invisível visualmente mas presente no DOM */}
-       <div id="yt-player" className="absolute opacity-0 pointer-events-none -z-10 w-px h-px overflow-hidden" />
+    <div className="absolute bottom-8 right-8 z-50 flex flex-col items-end gap-2 animate-fade-in pointer-events-auto">
+       {/* 
+         NOTA: O player precisa ter algum tamanho no DOM para alguns navegadores processarem o autoplay corretamente.
+         Usamos opacity-0 e posicionamento absoluto para "esconder" visualmente sem remover do layout flow completamente.
+       */}
+       <div className="absolute opacity-0 pointer-events-none -z-10 w-1 h-1 overflow-hidden" style={{ right: '10000px' }}>
+          <div id="yt-player"></div>
+       </div>
        
        {isPlaying && (
-         <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full">
-            <Music size={16} className="text-green-400 animate-pulse" />
-            <span className="text-xs text-white/70 uppercase tracking-widest font-bold">Rádio Ambiente</span>
-            <button onClick={playNext} className="text-[10px] bg-white/10 px-2 py-1 rounded hover:bg-white/20 transition-colors">
-                Próxima
+         <div className="flex items-center gap-3 bg-black/60 backdrop-blur-xl border border-white/10 px-5 py-3 rounded-full shadow-2xl hover:bg-black/80 transition-all group">
+            <div className={`p-2 rounded-full ${isMuted ? 'bg-red-500/20' : 'bg-green-500/20'} ${!isMuted ? 'animate-pulse' : ''}`}>
+              {isMuted ? <VolumeX size={18} className="text-red-400" /> : <Music size={18} className="text-green-400" />}
+            </div>
+            
+            <div className="flex flex-col mr-2">
+               <div className="flex items-center gap-1">
+                 <Radio size={10} className="text-yellow-500" />
+                 <span className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Rádio TV</span>
+               </div>
+               <span className="text-xs text-white font-bold whitespace-nowrap">
+                 {playerReady ? "Tocando Hits" : "Carregando..."}
+               </span>
+            </div>
+
+            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
+            <button onClick={playNext} className="text-white/70 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full" title="Próxima Música">
+                <SkipForward size={20} />
             </button>
-            <button onClick={toggleMute} className="ml-2 hover:scale-110 transition-transform">
-                {isMuted ? <VolumeX size={20} className="text-red-400"/> : <Volume2 size={20} className="text-white"/>}
+            
+            <button onClick={toggleMute} className="text-white/70 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full" title={isMuted ? "Ativar Som" : "Mudo"}>
+                {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
             </button>
          </div>
        )}
