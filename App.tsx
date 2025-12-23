@@ -1,18 +1,19 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Unlock, Download, Power, Edit3, Bell, Smartphone, Maximize
+  ArrowRight, ArrowLeft, Lock, Edit3, Maximize, Minimize, PlayCircle, Tv
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
 import { fetchWeatherData } from './services/weather'; 
-import { processVoiceCommandAI, generateNewsReport, generateBeachReport, BEACH_FALLBACK } from './services/gemini';
+import { generateBeachReport, BEACH_FALLBACK } from './services/gemini';
 import { Reminder, WeatherData } from './types';
 import ResizableWidget from './components/ResizableWidget';
 import ClockWidget from './components/ClockWidget';
 import WeatherWidget from './components/WeatherWidget';
 import RemindersWidget from './components/RemindersWidget';
 import ChatModal from './components/ChatModal';
+import BackgroundMusic from './components/BackgroundMusic';
 import { ErrorBoundary } from 'react-error-boundary';
 
 const MARICA_COORDS = { lat: -22.9194, lon: -42.8186 };
@@ -32,7 +33,11 @@ const App = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [beachReport, setBeachReport] = useState<any[]>(BEACH_FALLBACK);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  
+  // RESTAURADO: Começa como FALSE para exibir a tela de Start
   const [hasStarted, setHasStarted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
   const [isLayoutLocked, setIsLayoutLocked] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
@@ -49,64 +54,53 @@ const App = () => {
     setWidgets(prev => ({ ...prev, [key]: { ...prev[key as keyof typeof prev], ...updates } }));
   };
 
-  // LAYOUT RÍGIDO - 3 COLUNAS
   const recalculateLayout = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     
-    // Configurações de Espaçamento
     const padding = 20;
-    const sideColumnWidth = w * 0.28; // 28% para as laterais
-    const centerColumnWidth = w * 0.44; // 44% para o centro
-
+    const sideColumnWidth = Math.floor(w * 0.27); 
+    const centerColumnWidth = w - (sideColumnWidth * 2) - (padding * 2);
+    const clockHeight = 110;
+    const footerHeight = 100;
+    const dateHeight = h - clockHeight - footerHeight - (padding * 4);
+    
     setWidgets({
-      // 1. COLUNA ESQUERDA (Lembretes) - Altura Total
       reminders: { 
         width: sideColumnWidth - padding, 
         height: h - (padding * 2), 
         x: padding, 
         y: padding 
       },
-
-      // 2. COLUNA DIREITA (Clima) - Altura Total
       weather: { 
         width: sideColumnWidth - padding, 
         height: h - (padding * 2), 
-        x: w - (sideColumnWidth) - padding + padding, // Ajuste para encostar na direita
+        x: w - sideColumnWidth, 
         y: padding 
       },
-
-      // 3. COLUNA CENTRAL (Relógio + Data + Footer)
-      // Relógio: Topo do Centro
       clock: { 
         width: centerColumnWidth, 
-        height: 120, 
+        height: clockHeight, 
         x: sideColumnWidth + padding, 
-        y: padding + 10 // Um pouco abaixo do topo
+        y: padding 
       },
-      
-      // Data: Centro Absoluto da tela (mas dentro da coluna central)
       date: { 
         width: centerColumnWidth, 
-        height: 250, 
+        height: Math.max(200, dateHeight), 
         x: sideColumnWidth + padding, 
-        y: (h / 2) - 125 // Centralizado verticalmente
+        y: padding + clockHeight + padding 
       },
-
-      // Ontem: Canto Inferior Esquerdo da COLUNA CENTRAL
       prev: { 
-        width: centerColumnWidth / 2.5, 
-        height: 100, 
+        width: (centerColumnWidth / 2) - 10, 
+        height: footerHeight, 
         x: sideColumnWidth + padding, 
-        y: h - 140 
+        y: h - footerHeight - padding 
       },
-
-      // Amanhã: Canto Inferior Direito da COLUNA CENTRAL
       next: { 
-        width: centerColumnWidth / 2.5, 
-        height: 100, 
-        x: w - sideColumnWidth - padding - (centerColumnWidth / 2.5), 
-        y: h - 140 
+        width: (centerColumnWidth / 2) - 10, 
+        height: footerHeight, 
+        x: sideColumnWidth + padding + (centerColumnWidth / 2) + 10, 
+        y: h - footerHeight - padding 
       }
     });
   }, []);
@@ -189,23 +183,25 @@ const App = () => {
     };
   };
 
+  // Função para iniciar a aplicação e tentar Fullscreen
   const startApp = () => {
     setHasStarted(true);
-    recalculateLayout(); 
     if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen denied", e));
+      document.documentElement.requestFullscreen().catch(console.error);
     }
+    // Garante layout correto após renderizar os componentes
+    setTimeout(recalculateLayout, 100);
   };
 
-  if (!hasStarted) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white cursor-pointer select-none" onClick={startApp}>
-        <Maximize size={80} className="text-yellow-500 animate-pulse mb-6" />
-        <h1 className="text-5xl font-bold tracking-[0.5em]">SMART HOME</h1>
-        <p className="mt-4 opacity-50 text-sm tracking-widest">TOQUE PARA INICIAR EM TELA CHEIA</p>
-      </div>
-    );
-  }
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(e => console.log(e));
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => setIsFullscreen(false));
+      }
+    }
+  };
 
   const getDateInfo = (d: Date) => ({
     day: d.getDate(),
@@ -224,35 +220,62 @@ const App = () => {
     hourly: { time: [], temperature_2m: [], weathercode: [] }
   };
 
+  // RESTAURADO: Tela de Start
+  if (!hasStarted) {
+    return (
+      <div 
+        className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white cursor-pointer select-none" 
+        style={getBackgroundStyle()}
+        onClick={startApp}
+      >
+        <div className="bg-black/60 p-12 rounded-[3rem] backdrop-blur-xl border-2 border-white/10 text-center animate-fade-in shadow-2xl">
+          <PlayCircle size={100} className="text-yellow-500 animate-pulse mx-auto mb-8" />
+          <h1 className="text-6xl font-bold tracking-[0.2em] mb-4">SMART HOME</h1>
+          <div className="flex items-center justify-center gap-2 opacity-70 mb-8">
+            <Tv size={20} />
+            <span className="uppercase tracking-widest text-sm">Modo TV Samsung • Descanso de Tela</span>
+          </div>
+          <p className="bg-white/10 py-3 px-8 rounded-full inline-block font-bold text-lg hover:bg-white/20 transition-colors">
+            TOQUE NA TELA PARA INICIAR
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <main className="w-full h-screen overflow-hidden relative select-none text-white bg-black" style={getBackgroundStyle()}>
+        
+        {/* COMPONENTE DE MÚSICA (Invisível) */}
+        <BackgroundMusic isPlaying={hasStarted} />
+
         <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
         <section className="absolute inset-0 z-10 pointer-events-none">
           
-          {/* 1. RELÓGIO (Centro Topo) */}
+          {/* 1. RELÓGIO */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.clock.width} height={widgets.clock.height} locked={isLayoutLocked} position={{ x: widgets.clock.x, y: widgets.clock.y }} onResize={(w, h) => updateWidget('clock', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('clock', { x, y })}>
               <ClockWidget currentTime={currentTime} greeting={currentTime.getHours() < 12 ? 'Bom dia' : 'Boa tarde'} width={widgets.clock.width} />
             </ResizableWidget>
           </div>
 
-          {/* 2. LEMBRETES (Esquerda Total) */}
+          {/* 2. LEMBRETES */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.reminders.width} height={widgets.reminders.height} locked={isLayoutLocked} position={{ x: widgets.reminders.x, y: widgets.reminders.y }} onResize={(w, h) => updateWidget('reminders', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('reminders', { x, y })}>
               <RemindersWidget reminders={reminders} onAdd={addReminder} onDelete={deleteReminder} />
             </ResizableWidget>
           </div>
 
-          {/* 3. CLIMA (Direita Total) */}
+          {/* 3. CLIMA */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.weather.width} height={widgets.weather.height} locked={isLayoutLocked} position={{ x: widgets.weather.x, y: widgets.weather.y }} onResize={(w, h) => updateWidget('weather', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('weather', { x, y })}>
               <WeatherWidget weather={displayWeather} locationName="Maricá - RJ" beachReport={beachReport} width={widgets.weather.width} />
             </ResizableWidget>
           </div>
 
-          {/* 4. DATA CENTRAL (Meio) */}
+          {/* 4. DATA */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.date.width} height={widgets.date.height} locked={isLayoutLocked} position={{ x: widgets.date.x, y: widgets.date.y }} onResize={(w, h) => updateWidget('date', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('date', { x, y })}>
               <div className="flex flex-col items-center justify-center h-full text-center drop-shadow-2xl animate-fade-in pointer-events-none">
@@ -263,36 +286,40 @@ const App = () => {
             </ResizableWidget>
           </div>
 
-          {/* 5. ONTEM (Canto Inferior Esquerdo da Coluna Central) */}
+          {/* 5. ONTEM */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.prev.width} height={widgets.prev.height} locked={isLayoutLocked} position={{ x: widgets.prev.x, y: widgets.prev.y }} onResize={(w, h) => updateWidget('prev', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('prev', { x, y })}>
-              <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity p-2">
-                  <ArrowLeft size={widgets.prev.width / 5} />
+              <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity p-2 h-full">
+                  <ArrowLeft size={widgets.prev.width / 6} />
                   <div className="text-left">
-                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 8}px` }}>Ontem</span>
-                    <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 3.5}px` }}>{yesterday.day}</span>
+                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.prev.width / 10}px` }}>Ontem</span>
+                    <span className="font-bold block" style={{ fontSize: `${widgets.prev.width / 4}px` }}>{yesterday.day}</span>
                   </div>
               </div>
             </ResizableWidget>
           </div>
 
-          {/* 6. AMANHÃ (Canto Inferior Direito da Coluna Central) */}
+          {/* 6. AMANHÃ */}
           <div className="pointer-events-auto">
             <ResizableWidget width={widgets.next.width} height={widgets.next.height} locked={isLayoutLocked} position={{ x: widgets.next.x, y: widgets.next.y }} onResize={(w, h) => updateWidget('next', { width: w, height: h })} onPositionChange={(x, y) => updateWidget('next', { x, y })}>
-              <div className="flex items-center gap-3 justify-end opacity-50 hover:opacity-100 transition-opacity p-2">
+              <div className="flex items-center gap-3 justify-end opacity-50 hover:opacity-100 transition-opacity p-2 h-full">
                   <div className="text-right">
-                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 8}px` }}>Amanhã</span>
-                    <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 3.5}px` }}>{tomorrow.day}</span>
+                    <span className="block uppercase tracking-widest text-yellow-400 font-bold" style={{ fontSize: `${widgets.next.width / 10}px` }}>Amanhã</span>
+                    <span className="font-bold block" style={{ fontSize: `${widgets.next.width / 4}px` }}>{tomorrow.day}</span>
                   </div>
-                  <ArrowRight size={widgets.next.width / 5} />
+                  <ArrowRight size={widgets.next.width / 6} />
               </div>
             </ResizableWidget>
           </div>
         </section>
 
-        {/* FOOTER LOCK */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
-          <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 md:p-6 rounded-full shadow-2xl transition-all duration-300 border-2 ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20' : 'bg-yellow-500 text-black border-yellow-300 scale-125'}`}>
+        {/* CONTROLES DO RODAPÉ (Lock + Fullscreen) */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex gap-4">
+          <button onClick={toggleFullscreen} className="p-4 rounded-full shadow-2xl transition-all duration-300 border-2 bg-white/5 border-white/10 text-white/50 hover:text-white hover:bg-white/10">
+             {isFullscreen ? <Minimize size={24}/> : <Maximize size={24}/>}
+          </button>
+          
+          <button onClick={() => setIsLayoutLocked(!isLayoutLocked)} className={`p-4 rounded-full shadow-2xl transition-all duration-300 border-2 ${isLayoutLocked ? 'bg-white/5 border-white/10 text-white/20' : 'bg-yellow-500 text-black border-yellow-300 scale-110'}`}>
             {isLayoutLocked ? <Lock size={24}/> : <Edit3 size={24}/>}
           </button>
         </div>
