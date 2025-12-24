@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  ArrowRight, ArrowLeft, Lock, Edit3, Maximize, Minimize, PlayCircle, Tv
+  ArrowRight, ArrowLeft, Lock, Edit3, Maximize, Minimize, PlayCircle, Tv, WifiOff
 } from 'lucide-react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './services/firebase';
@@ -33,6 +33,9 @@ const App = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [beachReport, setBeachReport] = useState<any[]>(BEACH_FALLBACK);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  
+  // Conexão State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // RESTAURADO: Começa como FALSE para exibir a tela de Start
   const [hasStarted, setHasStarted] = useState(false);
@@ -111,7 +114,21 @@ const App = () => {
     return () => window.removeEventListener('resize', recalculateLayout);
   }, [recalculateLayout]);
 
+  // Monitoramento de Conexão
+  useEffect(() => {
+    const handleStatusChange = () => {
+      setIsOnline(navigator.onLine);
+    };
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
+    return () => {
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
+    };
+  }, []);
+
   const loadData = useCallback(async () => {
+    if (!navigator.onLine) return; // Evita fetch se offline
     try {
       const data = await fetchWeatherData(MARICA_COORDS);
       if (data) {
@@ -132,10 +149,15 @@ const App = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
+  // Recarga Segura: Só recarrega a página se tiver internet
   useEffect(() => {
     const pageReload = setInterval(() => {
-      window.location.reload();
-    }, 1800000); 
+      if (navigator.onLine) {
+        window.location.reload();
+      } else {
+        console.warn("Sem conexão: Recarga automática adiada.");
+      }
+    }, 1800000); // 30 minutos
     return () => clearInterval(pageReload);
   }, []);
 
@@ -156,7 +178,7 @@ const App = () => {
   }, []);
 
   const addReminder = async (text: string) => {
-    if (db) {
+    if (db && isOnline) {
       await addDoc(collection(db, "smart_home_reminders"), {
         text,
         type: 'info',
@@ -167,7 +189,7 @@ const App = () => {
   };
 
   const deleteReminder = async (id: string) => {
-    if (db) await deleteDoc(doc(db, "smart_home_reminders", id));
+    if (db && isOnline) await deleteDoc(doc(db, "smart_home_reminders", id));
   };
 
   const getBackgroundStyle = () => {
@@ -251,6 +273,16 @@ const App = () => {
         <BackgroundMusic isPlaying={hasStarted} />
 
         <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
+        {/* INDICADOR DE OFFLINE */}
+        {!isOnline && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[100] animate-fade-in">
+               <div className="bg-red-500/90 text-white px-6 py-2 rounded-full backdrop-blur-md flex items-center gap-3 shadow-[0_0_20px_rgba(239,68,68,0.6)] border border-red-400/50">
+                   <WifiOff size={20} className="animate-pulse" />
+                   <span className="font-bold uppercase tracking-widest text-sm">Offline</span>
+               </div>
+            </div>
+        )}
 
         <section className="absolute inset-0 z-10 pointer-events-none">
           
